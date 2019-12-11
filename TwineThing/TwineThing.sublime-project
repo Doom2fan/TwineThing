@@ -1,0 +1,49 @@
+{
+	"build_systems":
+	[
+		{
+            "name": "dub run",
+		    "cmd": ["dub", "run"],
+		    "working_dir": "$project_path",
+		    "file_regex": "^(.*?)\\(([0-9]+),?([0-9]+)?\\): (.*)",
+		    "selector": "source.d",
+
+		    "variants": [
+		        {
+		            "name": "dub build",
+		            "working_dir": "$project_path",
+		            "cmd": ["dub", "build"]
+		        },
+		        {
+		            "name": "dub unittest",
+		            "working_dir": "$project_path",
+		            "cmd": ["dub", "test"]
+		        },
+		        {
+		            "name": "dub unittest",
+		            "working_dir": "$project_path",
+		            "cmd": ["dub", "build", "--build=docs"]
+		        }
+		    ]
+		}
+	],
+	"folders":
+	[
+		{
+			"path": "source/"
+		},
+		{
+			"folder_exclude_patterns":
+			[
+				"*"
+			],
+			"path": "."
+		}
+	],
+	"settings":
+	{
+		"default_line_ending": "windows",
+		"tab_size": 4,
+		"translate_tabs_to_spaces": true
+	}
+}

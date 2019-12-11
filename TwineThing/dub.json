@@ -1,0 +1,34 @@
+{
+    "name": "twinething",
+    "version": "1.0.0",
+    "description": "",
+    "copyright": "Copyright © 2019 Chronos \"phantombeta\" Ouroboros",
+    "authors": ["Chronos Ouroboros"],
+    "license": "GPL-3.0",
+    "targetType": "executable",
+    "targetPath": "bin",
+    "workingDirectory": "bin",
+
+    "lflags": [
+        "+lib\\",
+        "+dsfmlc-audio",
+        "+dsfmlc-graphics",
+        "+dsfmlc-network",
+        "+dsfmlc-system",
+        "+dsfmlc-window",
+    ],
+
+    "dependencies": {
+        "dsfml": "~>2.3",
+        "toml": "~>1.0.0-rc.3"
+    },
+
+    "copyFiles": [
+        "LICENSE",
+        "resources"
+    ],
+
+    "copyFiles-windows": [
+        "DLLs/*"
+    ]
+}

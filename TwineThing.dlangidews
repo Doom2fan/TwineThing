@@ -1,0 +1,9 @@
+{
+    "name": "TwineThing",
+    "description": null,
+    "projects": {
+        "twinething": "TwineThing/dub.json"
+    },
+    "includePath": {
+    }
+}
