@@ -73,10 +73,11 @@ class TwineCommand_AddSelection : TwineCommand {
 
 class TwineCommand_If : TwineCommand {
     TwineExpression condition;
-    TwineCommand[] commands;
+    int jumpCount;
 }
 
 class TwineCommands_SetVariable : TwineCommand {
+    string variableName;
     TwineExpression expression;
 }
 
@@ -90,6 +91,26 @@ class TwineCommand_PrintResult : TwineCommand {
 //
 // ======================================================================
 class TwineExpression {
+}
+
+class TwineExpr_Integer : TwineExpression {
+    int value;
+}
+
+class TwineExpr_Bool : TwineExpression {
+    int value;
+}
+
+class TwineExpr_String : TwineExpression {
+    int value;
+}
+
+class TwineExpr_Variable : TwineExpression {
+    string variableName;
+}
+
+class TwineExpr_FunctionCall : TwineExpression {
+    string functionName;
 }
 
 class TwineExpr_Or : TwineExpression {

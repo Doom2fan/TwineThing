@@ -21,6 +21,7 @@ module twinevm;
 import std.algorithm : min;
 import std.typecons : Tuple;
 import std.format : format;
+import chr_tools.stack;
 import gamedata;
 import utilities : wrap;
 
@@ -31,28 +32,44 @@ enum TwineVMState {
     Stopped,
 }
 
-alias TwineSelection = Tuple!(string, "text", TwinePassage, "passage");
-
 class TwineVMException : Exception {
     public this (string message, string file = __FILE__, int _line = __LINE__) {
         super (message, file, _line);
     }
 }
 
+alias TwineSelection = Tuple!(string, "text", TwinePassage, "passage");
+
+alias TwinePassageStack = Stack!(TwineStoredPassage, true);
+alias TwineStoredPassage = Tuple!(TwinePassage, "passage", int, "command");
+
+alias TwineValue = Algebraic!()
+
+class TwineExpressionValue {
+    protected string stringVal;
+    protected int intVal;
+    protected bool boolVal;
+}
+
 class TwineVirtualMachine {
-    // Game data
+    /* Game data */
     protected TwineGameData gameData;
     protected Object[string] gameVariables;
 
-    // VM state
+    /* VM state */
     protected TwineVMState vmState;
+    // Current passage
     protected TwinePassage curPassage;
     protected int curCommand;
+    // Current text
     protected string curTextBuffer;
     protected string[] curTextLines;
+    // Selections
     protected TwineSelection[] selections;
+    // Passage call stack
+    protected TwinePassageStack passageCallStack;
 
-    // Callbacks
+    /* Callbacks */
     public void delegate (string) setTextCallback;
     public void delegate (string) setImageCallback;
     public void delegate (string) setMusicCallback;
@@ -69,6 +86,7 @@ class TwineVirtualMachine {
         curTextBuffer = null;
         curTextLines = null;
         selections = null;
+        passageCallStack = new TwinePassageStack (10);
     }
 
     public TwineVMState getVMState () {
@@ -108,6 +126,15 @@ class TwineVirtualMachine {
         setTextCallback (text.join ('\n'));
     }
 
+    protected void showFatalVMError (string error) {
+        showFatalErrorCallback (error);
+        vmState = TwineVMState.Stopped;
+    }
+
+    protected  processExpression (TwineExpression expression) {
+        return 5;
+    }
+
     public void run () {
         if (
             vmState == TwineVMState.ScreenPause ||
@@ -117,7 +144,8 @@ class TwineVirtualMachine {
             return;
 
         while (curCommand < curPassage.commands.length) {
-            auto cmd = curPassage.commands [curCommand];
+            auto cmd = cast (const) curPassage.commands [curCommand];
+            bool incrementCmdCounter = true;
 
             if (auto textCMD = cast (TwineCommand_PrintText) cmd) {
                 curTextBuffer ~= textCMD.text;
@@ -126,44 +154,70 @@ class TwineVirtualMachine {
 
                 return;
             } else if (auto jumpCMD = cast (TwineCommand_JumpToPassage) cmd) {
-                if (auto jumpTarget = (jumpCMD.targetPassage in gameData.passages))  {
-                    curPassage = *jumpTarget;
-                    curCommand = 0;
-                } else
-                    showFatalErrorCallback (format ("Unknown jump target \"%s\".", jumpCMD.targetPassage));
-            } else if (auto callCMD = cast (TwineCommand_CallPassage) cmd) {
-                throw new TwineVMException ("\"Call\" ain't implemented yet.");
-                /*if (auto jumpTarget = (gameData.passages [callCMD.targetPassage]))  {
+                auto jumpTarget = (jumpCMD.targetPassage in gameData.passages); // @suppress(dscanner.suspicious.unmodified)
 
-                } else
-                    showFatalErrorCallback (format ("Unknown call target \"%s\".", jumpCMD.targetPassage));*/
+                if (!jumpTarget) {
+                    showFatalVMError (format ("Unknown jump target \"%s\".", jumpCMD.targetPassage));
+                    return;
+                }
+
+                curPassage = *jumpTarget;
+                curCommand = 0;
+            } else if (auto callCMD = cast (TwineCommand_CallPassage) cmd) {
+                auto jumpTarget = (callCMD.targetPassage in gameData.passages); // @suppress(dscanner.suspicious.unmodified)
+
+                if (!jumpTarget) {
+                    showFatalVMError (format ("Unknown jump target \"%s\".", callCMD.targetPassage));
+                    return;
+                }
+
+                passageCallStack.push (TwineStoredPassage (curPassage, curCommand));
+
+                curPassage = *jumpTarget;
+                curCommand = 0;
             } else if (auto returnCMD = cast (TwineCommand_ReturnPassage) cmd) {
-                throw new TwineVMException ("\"Return\" ain't implemented yet.");
+                if (passageCallStack.isEmpty) {
+                    showFatalVMError ("Tried to return on an empty call stack.");
+                    return;
+                }
+
+                auto storedPassage = passageCallStack.pop (); // @suppress(dscanner.suspicious.unmodified)
+
+                curPassage = storedPassage.passage;
+                curCommand = storedPassage.command;
             } else if (auto setMusicCMD = cast (TwineCommand_SetMusic) cmd) {
                 setMusicCallback (setMusicCMD.musicName);
             } else if (auto setImageCMD = cast (TwineCommand_SetImage) cmd) {
                 setImageCallback (setImageCMD.imageName);
             } else if (auto addSelectionCMD = cast (TwineCommand_AddSelection) cmd) {
-                if (auto jumpTarget = (gameData.passages [addSelectionCMD.targetPassage]))  {
-                    auto selection = TwineSelection ();
+                auto jumpTarget = (gameData.passages [addSelectionCMD.targetPassage]); // @suppress(dscanner.suspicious.unmodified)
 
-                    selection.text = addSelectionCMD.selectionText;
-                    selection.passage = jumpTarget;
+                if (!jumpTarget) {
+                    showFatalVMError (format ("Unknown passage \"%s\" in selection.", addSelectionCMD.targetPassage));
+                    return;
+                }
 
-                    selections ~= [ selection ];
-                } else
-                    showFatalErrorCallback (format ("Unknown passage \"%s\" in selection.", addSelectionCMD.targetPassage));
+                auto selection = TwineSelection ();
+
+                selection.text = addSelectionCMD.selectionText;
+                selection.passage = jumpTarget;
+
+                selections ~= [ selection ];
             } else if (auto ifCMD = cast (TwineCommand_If) cmd) {
-                throw new TwineVMException ("\"If\" ain't implemented yet.");
+                incrementCmdCounter = false;
+
+                if ((cast (bool) processExpression (ifCMD.condition)) == false)
+                    curCommand += ifCMD.jumpCount;
             } else if (auto setVarCMD = cast (TwineCommands_SetVariable) cmd) {
-                throw new TwineVMException ("\"Set\" ain't implemented yet.");
+                gameVariables [setVarCMD.variableName] = processExpression (setVarCMD.expression);
             } else if (auto printCMD = cast (TwineCommand_PrintResult) cmd) {
-                throw new TwineVMException ("\"Print\" ain't implemented yet.");
+                curTextBuffer ~= processExpression (printCMD.expression).toString ();
             } else {
-                throw new TwineVMException (format ("Unknown command class \"%s\" encountered.", ));
+                throw new TwineVMException (format ("Unknown command class \"%s\" encountered.", cmd.classinfo.name));
             }
 
-            curCommand++;
+            if (incrementCmdCounter)
+                curCommand++;
         }
 
         if (vmState == TwineVMState.WaitingForSelection) {

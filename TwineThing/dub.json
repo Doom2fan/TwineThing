@@ -20,7 +20,8 @@
 
     "dependencies": {
         "dsfml": "~>2.3",
-        "toml": "~>1.0.0-rc.3"
+        "toml": "~>1.0.0-rc.3",
+        "chr_tools": "~>2.0.0"
     },
 
     "copyFiles": [

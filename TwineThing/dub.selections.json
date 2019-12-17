@@ -1,11 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"chr_tools": "1.0.0",
-		"derelict-gl3": "1.0.24",
-		"derelict-sdl2": "1.9.5",
-		"derelict-util": "2.1.0",
-		"dgame": "0.6.7",
+		"chr_tools": "2.0.0",
 		"dsfml": "2.3.0",
 		"toml": "1.0.0-rc.3"
 	}
