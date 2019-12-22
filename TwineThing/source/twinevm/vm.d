@@ -16,14 +16,23 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-module twinevm;
+module twinevm.vm;
 
-import std.algorithm : min;
+import std.algorithm : min, countUntil, swap;
 import std.typecons : Tuple;
 import std.format : format;
+import std.variant : Algebraic;
+import std.array : split;
+import std.conv : to;
+
 import chr_tools.stack;
+
 import gamedata;
 import utilities : wrap;
+
+import twinevm.common;
+import twinevm.twinevalue;
+import twinevm.twinefunctions;
 
 enum TwineVMState {
     Running,
@@ -32,29 +41,16 @@ enum TwineVMState {
     Stopped,
 }
 
-class TwineVMException : Exception {
-    public this (string message, string file = __FILE__, int _line = __LINE__) {
-        super (message, file, _line);
-    }
-}
-
 alias TwineSelection = Tuple!(string, "text", TwinePassage, "passage");
 
 alias TwinePassageStack = Stack!(TwineStoredPassage, true);
 alias TwineStoredPassage = Tuple!(TwinePassage, "passage", int, "command");
 
-alias TwineValue = Algebraic!()
-
-class TwineExpressionValue {
-    protected string stringVal;
-    protected int intVal;
-    protected bool boolVal;
-}
-
 class TwineVirtualMachine {
     /* Game data */
     protected TwineGameData gameData;
-    protected Object[string] gameVariables;
+    protected TwineValue[string] gameVariables;
+    protected TwineFunctions gameFunctions;
 
     /* VM state */
     protected TwineVMState vmState;
@@ -108,8 +104,6 @@ class TwineVirtualMachine {
     }
 
     protected void startShowText () {
-        import std.array : split;
-
         vmState = TwineVMState.ScreenPause;
 
         curTextLines = curTextBuffer.wrap (30).split ('\n');
@@ -131,8 +125,63 @@ class TwineVirtualMachine {
         vmState = TwineVMState.Stopped;
     }
 
-    protected  processExpression (TwineExpression expression) {
-        return 5;
+    protected TwineValue evaluateExpression (TwineExpression expr) {
+        if (auto intExpr = cast (TwineExpr_Integer) expr) {
+            return TwineValue (intExpr.value);
+        } else if (auto boolExpr = cast (TwineExpr_Bool) expr) {
+            return TwineValue (boolExpr.value);
+        } else if (auto strExpr = cast (TwineExpr_String) expr) {
+            return TwineValue (strExpr.value);
+        } else if (auto varExpr = cast (TwineExpr_Variable) expr) {
+            if (auto varVal = varExpr.variableName in gameVariables)
+                return *varVal;
+            else
+                return TwineValue ("");
+        } else if (auto funcCallExpr = cast (TwineExpr_FunctionCall) expr) {
+            TwineValue[] funcArgs = new TwineValue[funcCallExpr.args.length];
+            for (int i = 0; i < funcCallExpr.args.length; i++)
+                funcArgs [i] = evaluateExpression (funcCallExpr.args [i]);
+
+            if (auto func = funcCallExpr.functionName in gameFunctions.functionList) {
+                auto funcRet = (*func) (funcArgs);
+                if (auto e = funcRet.peek!TwineVMException)
+                    throw *e;
+
+                return funcRet.get!TwineValue;
+            }
+        } else if (auto negExpr = cast (TwineExpr_Negate) expr) {
+            auto val = evaluateExpression (negExpr.expr);
+            return TwineValue (!(val.asBool ()));
+        } else if (auto binExpr = cast (TwineBinaryExpression) expr) {
+            auto lhs = evaluateExpression (binExpr.lhs);
+            auto rhs = evaluateExpression (binExpr.lhs);
+
+            alias TwineBinaryOp = Tuple!(string, "type", string, "op", string, "conv");
+            static immutable (TwineBinaryOp[]) binaryOps = [
+                TwineBinaryOp ("TwineExpr_Or"         , "||", ".asBool ()"),
+                TwineBinaryOp ("TwineExpr_And"        , "&&", ".asBool ()"),
+                // Comparisons
+                TwineBinaryOp ("TwineExpr_Equals"     , "==", ""),
+                TwineBinaryOp ("TwineExpr_NotEqual"   , "!=", ""),
+                TwineBinaryOp ("TwineExpr_LesserThan" , "<" , ""),
+                TwineBinaryOp ("TwineExpr_GreaterThan", ">" , ""),
+                TwineBinaryOp ("TwineExpr_LesserEq"   , "<=", ""),
+                TwineBinaryOp ("TwineExpr_GreaterEq"  , ">=", ""),
+                // Arithmetics
+                TwineBinaryOp ("TwineExpr_Add"        , "+" , ""),
+                TwineBinaryOp ("TwineExpr_Subtract"   , "-" , ""),
+                TwineBinaryOp ("TwineExpr_Multiply"   , "*" , ""),
+                TwineBinaryOp ("TwineExpr_Division"   , "/" , ""),
+                TwineBinaryOp ("TwineExpr_Remainder"  , "%" , ""),
+            ];
+
+            static foreach (exprType; binaryOps) {
+                mixin ("if (auto isExpr = cast (" ~ exprType.type ~ ") binExpr)" ~
+                    "return TwineValue (lhs" ~ exprType.conv ~ " " ~ exprType.op ~ " rhs" ~ exprType.conv ~ ");");
+            }
+        }
+
+        assert (0);
     }
 
     public void run () {
@@ -206,15 +255,29 @@ class TwineVirtualMachine {
             } else if (auto ifCMD = cast (TwineCommand_If) cmd) {
                 incrementCmdCounter = false;
 
-                if ((cast (bool) processExpression (ifCMD.condition)) == false)
-                    curCommand += ifCMD.jumpCount;
+                try {
+                    if ((evaluateExpression (ifCMD.condition).asBool) == false)
+                        curCommand += ifCMD.jumpCount;
+                } catch (TwineVMException e) {
+                    showFatalVMError (cast (string) e.message);
+                    return;
+                }
             } else if (auto setVarCMD = cast (TwineCommands_SetVariable) cmd) {
-                gameVariables [setVarCMD.variableName] = processExpression (setVarCMD.expression);
+                try {
+                    gameVariables [setVarCMD.variableName] = evaluateExpression (setVarCMD.expression);
+                } catch (TwineVMException e) {
+                    showFatalVMError (cast (string) e.message);
+                    return;
+                }
             } else if (auto printCMD = cast (TwineCommand_PrintResult) cmd) {
-                curTextBuffer ~= processExpression (printCMD.expression).toString ();
-            } else {
+                try {
+                    curTextBuffer ~= evaluateExpression (printCMD.expression).asString ();
+                } catch (TwineVMException e) {
+                    showFatalVMError (cast (string) e.message);
+                    return;
+                }
+            } else
                 throw new TwineVMException (format ("Unknown command class \"%s\" encountered.", cmd.classinfo.name));
-            }
 
             if (incrementCmdCounter)
                 curCommand++;

@@ -27,7 +27,7 @@ import dsfml.graphics;
 import toml : parseTOML, TOMLDocument, TOMLParserException;
 import gamedata;
 import twineparser.parser;
-import twinevm;
+import twinevm.vm;
 import utilities : wrap;
 
 class TwineGame {

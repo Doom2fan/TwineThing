@@ -93,6 +93,11 @@ class TwineCommand_PrintResult : TwineCommand {
 class TwineExpression {
 }
 
+abstract class TwineBinaryExpression {
+    TwineExpression lhs;
+    TwineExpression rhs;
+}
+
 class TwineExpr_Integer : TwineExpression {
     int value;
 }
@@ -111,73 +116,48 @@ class TwineExpr_Variable : TwineExpression {
 
 class TwineExpr_FunctionCall : TwineExpression {
     string functionName;
+    TwineExpression[] args;
 }
 
-class TwineExpr_Or : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Or : TwineBinaryExpression {
 }
 
-class TwineExpr_And : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_And : TwineBinaryExpression {
 }
 
 class TwineExpr_Negate : TwineExpression {
     TwineExpression expr;
 }
 
-class TwineExpr_Equals : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Equals : TwineBinaryExpression {
 }
 
-class TwineExpr_NotEquals : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_NotEqual : TwineBinaryExpression {
 }
 
-class TwineExpr_LesserThan : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_LesserThan : TwineBinaryExpression {
 }
 
-class TwineExpr_GreaterThan : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_GreaterThan : TwineBinaryExpression {
 }
 
-class TwineExpr_LesserEq : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_LesserEq : TwineBinaryExpression {
 }
 
-class TwineExpr_GreaterEq : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_GreaterEq : TwineBinaryExpression {
 }
 
-class TwineExpr_Add : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Add : TwineBinaryExpression {
 }
 
-class TwineExpr_Subtract : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Subtract : TwineBinaryExpression {
 }
 
-class TwineExpr_Multiply : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Multiply : TwineBinaryExpression {
 }
 
-class TwineExpr_Division : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Division : TwineBinaryExpression {
 }
 
-class TwineExpr_Remainder : TwineExpression {
-    TwineExpression lhs;
-    TwineExpression rhs;
+class TwineExpr_Remainder : TwineBinaryExpression {
 }

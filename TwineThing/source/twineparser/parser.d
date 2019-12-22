@@ -142,6 +142,7 @@ public class TwineParser {
         auto textCMD = new TwineCommand_PrintText ();
         textCMD.text ~= "test aaaa bbbb cccc dddd";
         pass.commands ~= textCMD;
+        pass.commands ~= new TwineCommand_Pause ();
         gameData.passages ["Start"] = pass;
 
         return gameData;
