@@ -18,38 +18,39 @@
 
 module game;
 
-import std.file : exists, readText;
+import std.file : exists, readText, thisExePath;
+import std.path : buildPath;
 import std.format : format;
 import dsfml.system;
 import dsfml.window;
 import dsfml.graphics;
 import toml : parseTOML, TOMLDocument, TOMLParserException;
+import gamedata;
+import twineparser.parser;
+import twinevm;
 import utilities : wrap;
 
-struct TwineGameInfo {
-    string gameName = null;
-    string tweePath = null;
-}
-
-struct TwineData {
-
-}
-
 class TwineGame {
-    private const string gameInfoPath = "./gameinfo.toml";
+    protected const string gameInfoFile = "gameinfo.toml";
 
-    private RenderWindow mainWindow;
-    private bool windowFocused = false;
+    protected RenderWindow mainWindow;
+    protected bool windowFocused = false;
 
     TwineGameInfo gameInfo;
+    TwineVirtualMachine virtualMachine;
 
-    private Font systemFont;
+    protected Font systemFont;
 
-    private Texture imageTex;
-    private Sprite imageSprite;
-    private bool imageHidden;
-    private string imageError;
-    private Text imageText;
+    protected Texture imageTex;
+    protected Sprite imageSprite;
+    protected bool imageHidden;
+    protected string imageError;
+    protected Text imageText;
+
+    protected string thisExeDir () {
+        import std.path : dirName;
+        return dirName (thisExePath ());
+    }
 
     final void initialize () {
         // Create the window
@@ -58,7 +59,7 @@ class TwineGame {
 
         // Load the system font
         systemFont = new Font ();
-        systemFont.loadFromFile ("./resources/CourierPrime.ttf");
+        systemFont.loadFromFile (buildPath (thisExeDir (), "resources/CourierPrime.ttf"));
 
         // Create the image data
         imageTex = new Texture ();
@@ -75,7 +76,12 @@ class TwineGame {
         Joystick.update ();
     }
 
-    private void loadGameInfo () {
+    protected final void loadGameInfo () {
+        import std.file : FileException;
+        import std.path : isAbsolute, absolutePath;
+
+        auto gameInfoPath = buildPath (thisExeDir (), gameInfoFile);
+
         // Error out if gameinfo.toml is missing
         if (!exists (gameInfoPath)) {
             displayFatalError ("Could not find gameinfo.toml");
@@ -93,11 +99,22 @@ class TwineGame {
 
             if (auto path = "tweePath" in gameinfoToml)
                 gameInfo.tweePath = path.str;
+        } catch (FileException e) {
+            auto errorString = format ("Could not read gameinfo.toml.");
+            displayFatalError (errorString);
+            return;
+        } catch (std.utf.UTFException e) {
+            auto errorString = format ("Encountered a UTF-8 error while decoding gameinfo.toml.");
+            displayFatalError (errorString);
+            return;
         } catch (TOMLParserException e) {
             auto errorString = format ("TOML parsing error at line %d:%d:\n  %s", e.position.line, e.position.column, e.message);
             displayFatalError (errorString);
             return;
         }
+
+        if (!isAbsolute (gameInfo.tweePath))
+            gameInfo.tweePath = absolutePath (gameInfo.tweePath, thisExeDir ());
 
         if (!gameInfo.tweePath) {
             displayFatalError ("Game info key \"tweePath\" not set.");
@@ -114,10 +131,42 @@ class TwineGame {
             return;
         }
 
+        string tweeFileContents;
+        try {
+            tweeFileContents = readText (gameInfo.tweePath);
+        } catch (FileException e) {
+            auto errorString = format ("Could not read twee file \"%s\".", gameInfo.tweePath);
+            displayFatalError (errorString);
+            return;
+        } catch (std.utf.UTFException e) {
+            auto errorString = format ("Encountered a UTF-8 error while decoding twee file \"%s\".", gameInfo.tweePath);
+            displayFatalError (errorString);
+            return;
+        }
+
+        if (tweeFileContents.length >= 3 && tweeFileContents [0 .. 2] == [ 0xEF, 0xBB, 0xBF ]) {
+            tweeFileContents = tweeFileContents [2 .. $];
+        }
+
+        TwineParser parser = new TwineParser ();
+
+        TwineGameData gameData;
+        try {
+            gameData = parser.parseTweeFile (tweeFileContents);
+        } catch (TweeParserException e) {
+            auto errorString = format ("Twee parsing error at line %d:%d:\n  %s", e.position.line, e.position.column, e.message);
+            displayFatalError (errorString);
+            return;
+        }
+
+        virtualMachine = new TwineVirtualMachine (gameData);
+        virtualMachine.setImageCallback = &setImage;
+        virtualMachine.showFatalErrorCallback = &displayFatalError;
+
         mainWindow.setTitle (gameInfo.gameName);
     }
 
-    private void setImage (string name) {
+    protected void setImage (string name) {
         if (!name || name.length == 0) {
             imageHidden = true;
             imageError = null;
@@ -125,7 +174,7 @@ class TwineGame {
             return;
         }
 
-        auto filePath = "./images/" ~ name ~ ".png";
+        auto filePath = buildPath (thisExeDir (), "images/", name);
         if (!exists (filePath)) {
             imageError = format ("Could not find image file \"%s\"", name);
             return;
@@ -141,16 +190,16 @@ class TwineGame {
         imageError = null;
     }
 
-    private void displayFatalError (string err) {
+    protected final void displayFatalError (string err) {
         imageError = err.wrap (36);
         imageHidden = true;
     }
 
-    private void focusLost () {
+    protected void focusLost () {
         windowFocused = false;
     }
 
-    private void focusGained () {
+    protected void focusGained () {
         windowFocused = true;
     }
 
@@ -181,11 +230,12 @@ class TwineGame {
                 }
             }
 
+            virtualMachine.run ();
             doRender ();
         }
     }
 
-    private void doRender () {
+    protected void doRender () {
         /* Clear the window */
         mainWindow.clear (Color.Black);
 

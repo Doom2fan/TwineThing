@@ -47,7 +47,7 @@ private void wrapLine (Appender!string wrapped, in string text, in int lineWidth
                 int i = 0;
                 bool insertLine = false;
                 while (i < word.length) {
-                    int count = min (word.length - i, spaceLeft);
+                    const (int) count = min (word.length - i, spaceLeft);
 
                     if (insertLine)
                         wrapped.put ('\n');
