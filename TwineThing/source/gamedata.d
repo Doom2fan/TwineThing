@@ -21,6 +21,7 @@ module gamedata;
 struct TwineGameInfo {
     string gameName = null;
     string tweePath = null;
+    string fontPath = null;
 }
 
 class TwinePassage {
