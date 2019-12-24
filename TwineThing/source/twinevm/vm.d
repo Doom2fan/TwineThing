@@ -115,8 +115,11 @@ class TwineVirtualMachine {
     protected void showText () {
         import std.array : join;
 
+        if (curTextLines.length < 1)
+            return;
+
         auto text = curTextLines [0 .. min (6, $)];
-        curTextLines = curTextLines [min (6, $) - 1 .. $];
+        curTextLines = curTextLines [min (6, $) .. $];
         setTextCallback (text.join ('\n'));
     }
 
