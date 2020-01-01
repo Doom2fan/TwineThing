@@ -139,10 +139,37 @@ public class TwineParser {
 
         auto pass = new TwinePassage ();
         pass.passageName = "Start";
+
+        auto imageCMD = new TwineCommand_SetImage ();
+        imageCMD.imageName = "TEST1.png";
+        pass.commands ~= imageCMD;
+
         auto textCMD = new TwineCommand_PrintText ();
-        textCMD.text ~= "test aaaa bbbb cccc dddd";
+        textCMD.text ~= "test aaaa bbbb cccc dddd\neeee fffff gggg\nhhhh iii jjjjj\nkkkkkkkkkk llllllllllll\nmmmmmmmmmm\nnnnnnnnnnn\nooooooo\npppppp\nqqqqq\nrrrrrr\nsssss\nttttttttttt\nuuuuuuuuu\nmaxkek";
         pass.commands ~= textCMD;
+
         pass.commands ~= new TwineCommand_Pause ();
+
+        auto selCMD = new TwineCommand_AddSelection ();
+        selCMD.selectionText = "Fak";
+        selCMD.targetPassage = "Start";
+        pass.commands ~= selCMD;
+
+        selCMD = new TwineCommand_AddSelection ();
+        selCMD.selectionText = "Fug";
+        selCMD.targetPassage = "Start";
+        pass.commands ~= selCMD;
+
+        imageCMD = new TwineCommand_SetImage ();
+        imageCMD.imageName = "TEST2.png";
+        pass.commands ~= imageCMD;
+
+        textCMD = new TwineCommand_PrintText ();
+        textCMD.text ~= "aaaaaa\nbbbbbb\ncccccc";
+        pass.commands ~= textCMD;
+
+        pass.commands ~= new TwineCommand_Pause ();
+
         gameData.passages ["Start"] = pass;
 
         return gameData;

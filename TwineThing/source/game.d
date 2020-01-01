@@ -25,13 +25,13 @@ import std.format : format;
 import dsfml.system;
 import dsfml.window;
 import dsfml.graphics;
-
-import toml : parseTOML, TOMLDocument, TOMLParserException;
+import dsfml.audio;
 
 import gamedata;
+import tomlconfig;
 import smsfont;
 import smstext;
-import utilities : wrap;
+import utilities : wrap, ParseColourError, parseColourString, dsfmlColorFromArgbInt;
 
 import twineparser.parser;
 import twinevm.vm;
@@ -39,8 +39,9 @@ import twinevm.vm;
 class TwineGame {
     /* Protected members */
     protected {
-        const string gameInfoFile = "gameinfo.toml";
+        static const string gameInfoFile = "gameinfo.toml";
 
+        bool initFailed;
         RenderWindow mainWindow;
         bool windowFocused = false;
 
@@ -61,8 +62,17 @@ class TwineGame {
 
         TwineSMSFont textFont;
         TwineSMSText textData;
+        RectangleShape textBackground;
 
         int selectionIndex = 0;
+        int maxSelectionIndex = 0;
+        TwineSelection[] curSelections;
+        TwineSMSText selectionMarker;
+        Sound selectionBeepSound;
+
+        SoundBuffer selectionBeepSoundBuffer;
+
+        TwineVMState prevVMState;
     }
 
     /* Public members */
@@ -79,15 +89,69 @@ class TwineGame {
             return dirName (thisExePath ());
         }
 
-        final void loadGameInfo () {
+        final string loadTextLump (string path, string fileType) {
             import std.file : FileException;
             import std.path : isAbsolute, absolutePath;
+
+            if (!isAbsolute (path))
+                path = absolutePath (path, thisExeDir ());
+
+            if (!exists (path)) {
+                displayFatalError (format ("Could not find %s \"%s\"", fileType, path));
+                return null;
+            }
+
+            try {
+                string fileContents = readText (path);
+
+                if (!fileContents)
+                    return "";
+
+                if (fileContents.length >= 3 && fileContents [0 .. 3] == [ 0xEF, 0xBB, 0xBF ])
+                    fileContents = fileContents [2 .. $];
+
+                return fileContents;
+            } catch (FileException e) {
+                displayFatalError (format ("Could not read %s \"%s\".", fileType, path));
+                return null;
+            } catch (std.utf.UTFException e) {
+                displayFatalError (format ("Encountered a UTF-8 error while decoding %s \"%s\".", fileType, path));
+                return null;
+            }
+
+            assert (0);
+        }
+
+        final bool parseColourVar (in string colStr, out uint colVar) {
+            auto parsedCol = parseColourString (colStr);
+
+            if (auto errCode = parsedCol.peek!ParseColourError) {
+                string errMsg = null;
+
+                if (*errCode == ParseColourError.InvalidHexColour)
+                    errMsg = format ("Invalid hex colour \"%s\"", colStr);
+                else if (*errCode == ParseColourError.InvalidRGBTriplet)
+                    errMsg = format ("Invalid RGB triplet \"%s\"", colStr);
+                else if (*errCode == ParseColourError.RGBTripletOutOfRange)
+                    errMsg = format ("RGB triplet \"%s\" out of range [0-255]", colStr);
+
+                displayFatalError (format ("Invalid colour code in game info key \"backgroundColour\": %s.", errMsg));
+                return false;
+            }
+
+            colVar = parsedCol.get!uint;
+            return true;
+        }
+
+        final void loadGameInfo () {
+            import std.file : FileException;
 
             auto gameInfoPath = buildPath (thisExeDir (), gameInfoFile);
 
             // Error out if gameinfo.toml is missing.
             if (!exists (gameInfoPath)) {
                 displayFatalError ("Could not find gameinfo.toml");
+                initFailed = true;
                 return;
             }
 
@@ -95,100 +159,153 @@ class TwineGame {
             gameInfo = TwineGameInfo ();
 
             /* Load the game info */
+            string bgColourString = "#000000";
+            string textColourString = "#FFFFFF";
             try {
                 string gameinfoText = readText (gameInfoPath);
-                auto gameinfoToml = cast (const (TOMLDocument)) (parseTOML (gameinfoText));
 
-                if (auto name = "gameName" in gameinfoToml)
-                    gameInfo.gameName = name.str;
+                parseTomlConfig (gameinfoText, [
+                    TomlConfigMember (&gameInfo.gameName, "gameName"),
 
-                if (auto path = "tweePath" in gameinfoToml)
-                    gameInfo.tweePath = path.str;
+                    TomlConfigMember (&gameInfo.tweePath, "tweePath", TomlConfigFlag.Required),
+                    TomlConfigMember (&gameInfo.fontPath, "fontPath", TomlConfigFlag.Required),
 
-                if (auto path = "fontPath" in gameinfoToml)
-                    gameInfo.fontPath = path.str;
+                    TomlConfigMember (&gameInfo.selectionBeepPath, "selectionBeepPath", TomlConfigFlag.Required),
+
+                    TomlConfigMember (&bgColourString, "backgroundColour"),
+                    TomlConfigMember (&textColourString, "textColour"),
+
+                    TomlConfigMember (&gameInfo.imageWidth, "imageWidth", TomlConfigFlag.Required),
+                    TomlConfigMember (&gameInfo.imageHeight, "imageHeight", TomlConfigFlag.Required),
+
+                    TomlConfigMember (&gameInfo.windowWidth, "windowWidth", TomlConfigFlag.Required),
+                    TomlConfigMember (&gameInfo.windowHeight, "windowHeight", TomlConfigFlag.Required),
+
+                    TomlConfigMember (&gameInfo.textStartHeight, "textStartHeight", TomlConfigFlag.Required),
+                ]);
             } catch (FileException e) {
                 displayFatalError ("Could not read gameinfo.toml");
+                initFailed = true;
                 return;
             } catch (std.utf.UTFException e) {
                 displayFatalError ("Encountered a UTF-8 error while decoding gameinfo.toml");
+                initFailed = true;
                 return;
-            } catch (TOMLParserException e) {
-                displayFatalError (format ("TOML parsing error at line %d:%d:\n  %s", e.position.line, e.position.column, e.message));
+            } catch (TomlConfigException_TomlParsingError e) {
+                import toml : TOMLParserException;
+
+                auto tomlException = cast (TOMLParserException) e.innerException;
+
+                displayFatalError (
+                    format ("TOML parsing error at line %d:%d:\n  %s",
+                        tomlException.position.line,
+                        tomlException.position.column,
+                        tomlException.message
+                    )
+                );
+                initFailed = true;
+
                 return;
+            } catch (TomlConfigException_MissingRequiredKey e) {
+                displayFatalError (format ("Game info key \"%s\" is required and cannot be missing.", e.tomlKeyName));
+                initFailed = true;
+                return;
+            } catch (TomlConfigException_KeyTypeMismatch e) {
+                displayFatalError (format ("Game info key \"%s\" type mismatch: Expected %s, got %s.", e.tomlKeyName, e.expectedType, e.receivedType));
+                initFailed = true;
+                return;
+            }
+
+            if (!parseColourVar (bgColourString, gameInfo.backgroundColour))
+                return;
+            if (!parseColourVar (textColourString, gameInfo.textColour))
+                return;
+
+            static foreach (keyName; [ "gameInfo.imageWidth", "gameInfo.imageHeight", "gameInfo.windowWidth", "gameInfo.windowHeight"]) {
+                if (mixin (keyName) < 1) {
+                    displayFatalError (format ("Game info key \"%s\" cannot be zero or negative", keyName));
+                    initFailed = true;
+                    return;
+                }
             }
 
             /* Load the font */
-            if (!gameInfo.fontPath || gameInfo.fontPath.length < 1) {
-                displayFatalError ("Game info key \"fontPath\" is required and cannot be missing or empty.");
+            if (gameInfo.fontPath.length < 1) {
+                displayFatalError ("Game info key \"fontPath\" is required and cannot be empty.");
+                initFailed = true;
                 return;
             }
 
-            if (!isAbsolute (gameInfo.fontPath))
-                gameInfo.fontPath = absolutePath (gameInfo.fontPath, thisExeDir ());
-
-            if (!exists (gameInfo.fontPath)) {
-                displayFatalError (format ("Could not find font file \"%s\"", gameInfo.fontPath));
-                return;
-            }
-
-            // Try to load the font file.
             try {
-                string fontFileContents = readText (gameInfo.fontPath);
-
-                // Remove the UTF-8 BOM if there's any.
-                if (fontFileContents.length >= 3 && fontFileContents [0 .. 3] == [ 0xEF, 0xBB, 0xBF ])
-                    fontFileContents = fontFileContents [2 .. $];
-
+                string fontFileContents = loadTextLump (gameInfo.fontPath, "font");
                 textFont = TwineSMSFont.create (fontFileContents);
-            } catch (FileException e) {
-                displayFatalError (format ("Could not read font file \"%s\".", gameInfo.fontPath));
-                return;
-            } catch (std.utf.UTFException e) {
-                displayFatalError (format ("Encountered a UTF-8 error while decoding font file \"%s\".", gameInfo.fontPath));
+            } catch (TwineSMSFontException e) {
+                displayFatalError (cast (string) e.message);
+                initFailed = true;
                 return;
             }
 
             /* Load the twee file */
-            if (!gameInfo.tweePath || gameInfo.tweePath.length < 1) {
-                displayFatalError ("Game info key \"tweePath\" is required and cannot be missing or empty.");
-                return;
-            }
-
-            if (!isAbsolute (gameInfo.tweePath))
-                gameInfo.tweePath = absolutePath (gameInfo.tweePath, thisExeDir ());
-
-            if (!exists (gameInfo.tweePath)) {
-                displayFatalError (format ("Could not find twee file \"%s\"", gameInfo.tweePath));
+            if (gameInfo.tweePath.length < 1) {
+                displayFatalError ("Game info key \"tweePath\" is required and cannot be empty.");
+                initFailed = true;
                 return;
             }
 
             try {
-                string tweeFileContents = readText (gameInfo.tweePath);
-
-                if (tweeFileContents.length >= 3 && tweeFileContents [0 .. 3] == [ 0xEF, 0xBB, 0xBF ])
-                    tweeFileContents = tweeFileContents [2 .. $];
+                string tweeFileContents = loadTextLump (gameInfo.tweePath, "twee");
 
                 TwineParser parser = new TwineParser ();
-
                 gameData = parser.parseTweeFile (tweeFileContents);
-            } catch (FileException e) {
-                displayFatalError (format ("Could not read twee file \"%s\".", gameInfo.tweePath));
-                return;
-            } catch (std.utf.UTFException e) {
-                displayFatalError (format ("Encountered a UTF-8 error while decoding twee file \"%s\".", gameInfo.tweePath));
-                return;
             } catch (TweeParserException e) {
                 displayFatalError (format ("Twee parsing error at line %d:%d:\n  %s", e.position.line, e.position.column, e.message));
+                initFailed = true;
                 return;
             }
 
+            /* Load sounds */
+            if (gameInfo.selectionBeepPath && gameInfo.selectionBeepPath.length > 0) {
+                selectionBeepSoundBuffer = new SoundBuffer ();
+
+                if (!selectionBeepSoundBuffer.loadFromFile (gameInfo.selectionBeepPath)) {
+                    displayFatalError (format ("Sound file \"%s\" could not be loaded.", gameInfo.selectionBeepPath));
+                    initFailed = true;
+                    return;
+                }
+
+                selectionBeepSound = new Sound ();
+                selectionBeepSound.setBuffer (selectionBeepSoundBuffer);
+            } else {
+                selectionBeepSoundBuffer = null;
+                selectionBeepSound = null;
+            }
+
+            /* Calculate some things */
+            gameInfo.lineMaxLen = gameInfo.windowWidth - 2;
+
             /* Create the virtual machine */
             virtualMachine = new TwineVirtualMachine (gameData);
+            virtualMachine.lineMaxLen = gameInfo.lineMaxLen;
+            virtualMachine.setTextCallback = &setText;
             virtualMachine.setImageCallback = &setImage;
+            virtualMachine.setMusicCallback = null;
+            virtualMachine.setSelectionsCallback = &setSelections;
             virtualMachine.showFatalErrorCallback = &displayFatalError;
 
+            /* Update the render elements */
+            textData.font = textFont;
+            textData.position = Vector2f (8, gameInfo.textStartHeight * 8);
+
+            selectionMarker.font = textFont;
+
             mainWindow.setTitle (gameInfo.gameName);
+            mainWindow.size = Vector2u (gameInfo.windowWidth * CharBlockSize, gameInfo.windowHeight * CharBlockSize);
+
+            textBackground.size = Vector2f (gameInfo.windowWidth * CharBlockSize, (gameInfo.windowHeight - gameInfo.textStartHeight) * CharBlockSize);
+            textBackground.position = Vector2f (0, gameInfo.textStartHeight * CharBlockSize);
+            textBackground.fillColor = dsfmlColorFromArgbInt (gameInfo.backgroundColour);
+
+            initFailed = false;
         }
 
         void setImage (string name) {
@@ -215,6 +332,39 @@ class TwineGame {
             imageError = null;
         }
 
+        void setText (string text) {
+            textData.text = text;
+        }
+
+        void setSelections (TwineSelection[] selections) {
+            import std.array : appender;
+
+            if (!selections || selections.length < 1) {
+                curSelections = null;
+
+                selectionIndex = 0;
+                maxSelectionIndex = 0;
+
+                selectionMarker.text = "";
+
+                return;
+            }
+
+            curSelections = selections;
+            selectionIndex = 0;
+            maxSelectionIndex = selections.length;
+
+            auto newText = appender!string ("");
+            newText.reserve (50);
+            foreach (selection; selections) {
+                newText.put (selection.text);
+                newText.put ('\n');
+            }
+            setText (newText []);
+
+            selectionMarker.text = "~";
+        }
+
         final void displayFatalError (string err) {
             imageError = err.wrap (36);
             imageHidden = true;
@@ -233,11 +383,21 @@ class TwineGame {
         }
 
         void keyPressed_SelUp () {
+            if (maxSelectionIndex < 1 || selectionIndex < 1)
+                return;
 
+            selectionIndex--;
+            if (selectionBeepSound)
+                selectionBeepSound.play ();
         }
 
         void keyPressed_SelDown () {
+            if (maxSelectionIndex < 1 || selectionIndex >= (maxSelectionIndex - 1))
+                return;
 
+            selectionIndex++;
+            if (selectionBeepSound)
+                selectionBeepSound.play ();
         }
     }
 
@@ -250,7 +410,7 @@ class TwineGame {
         systemFont = new Font ();
         systemFont.loadFromFile (buildPath (thisExeDir (), "resources/CourierPrime.ttf"));
 
-        // Create the image data
+        // Create the image data and elements
         imageTex = new Texture ();
         imageSprite = new Sprite ();
         imageSprite.position (Vector2f (0, 0));
@@ -259,15 +419,26 @@ class TwineGame {
         imageText.setCharacterSize (12);
         imageText.setColor (Color.White);
 
+        // Create the text data and elements
+        textData = new TwineSMSText ();
+        textBackground = new RectangleShape (Vector2f (0, 0));
+
+        // Create the selection data and elements
+        selectionMarker = new TwineSMSText ();
+
         // Load the game data
         loadGameInfo ();
 
         Joystick.update ();
     }
 
+    protected void doUpdate () {
+        selectionMarker.position = Vector2f (0, (gameInfo.textStartHeight * 8) + (selectionIndex * 8));
+    }
+
     protected void doRender () {
         /* Clear the window */
-        mainWindow.clear (Color.Black);
+        mainWindow.clear (dsfmlColorFromArgbInt (gameInfo.backgroundColour));
 
         if (!imageError && !imageHidden)
             mainWindow.draw (imageSprite);
@@ -275,6 +446,10 @@ class TwineGame {
             imageText.setString (imageError);
             mainWindow.draw (imageText);
         }
+
+        mainWindow.draw (textBackground);
+        mainWindow.draw (textData);
+        mainWindow.draw (selectionMarker);
 
         /* Display the window */
         mainWindow.display ();
@@ -302,6 +477,10 @@ class TwineGame {
                     break;
 
                     case Event.EventType.KeyPressed:
+                        // Ignore input if the initialization failed
+                        if (initFailed)
+                            break;
+
                         // Z and X (Confirmation keys)
                         if (event.key.code == Keyboard.Key.Z)
                             zPressed = true;
@@ -320,6 +499,10 @@ class TwineGame {
                     break;
 
                     case Event.EventType.KeyReleased:
+                        // Ignore input if the initialization failed
+                        if (initFailed)
+                            break;
+
                         // Z and X (Confirmation keys)
                         if (event.key.code == Keyboard.Key.Z) {
                             if (zPressed)
@@ -362,9 +545,10 @@ class TwineGame {
                 }
             }
 
-            if (virtualMachine)
+            if (!initFailed && virtualMachine)
                 virtualMachine.run ();
 
+            doUpdate ();
             doRender ();
         }
     }

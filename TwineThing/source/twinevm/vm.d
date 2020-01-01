@@ -51,6 +51,7 @@ class TwineVirtualMachine {
     protected TwineGameData gameData;
     protected TwineValue[string] gameVariables;
     protected TwineFunctions gameFunctions;
+    public int lineMaxLen;
 
     /* VM state */
     protected TwineVMState vmState;
@@ -69,6 +70,7 @@ class TwineVirtualMachine {
     public void delegate (string) setTextCallback;
     public void delegate (string) setImageCallback;
     public void delegate (string) setMusicCallback;
+    public void delegate (TwineSelection[]) setSelectionsCallback;
     public void delegate (string) showFatalErrorCallback;
 
     public this (TwineGameData data) {
@@ -93,20 +95,29 @@ class TwineVirtualMachine {
         return cast (const (TwineSelection[])) (selections);
     }
 
-    public void playerInput (int selection) {
+    public void playerInput (int selNum) {
         if (vmState == TwineVMState.ScreenPause) {
             if (curTextLines.length < 1) {
                 vmState = TwineVMState.Running;
                 return;
             }
             showText ();
+        } else if (vmState == TwineVMState.WaitingForSelection) {
+            auto selection = selections [selNum];
+
+            curPassage = selection.passage;
+            curCommand = 0;
+
+            selections.length = 0;
+            setSelectionsCallback (null);
+            vmState = TwineVMState.Running;
         }
     }
 
     protected void startShowText () {
         vmState = TwineVMState.ScreenPause;
 
-        curTextLines = curTextBuffer.wrap (30).split ('\n');
+        curTextLines = curTextBuffer.wrap (lineMaxLen).split ('\n');
         curTextBuffer = null;
 
         showText ();
@@ -203,6 +214,7 @@ class TwineVirtualMachine {
                 curTextBuffer ~= textCMD.text;
             } else if (auto pauseCMD = cast (TwineCommand_Pause) cmd) {
                 startShowText ();
+                curCommand++;
 
                 return;
             } else if (auto jumpCMD = cast (TwineCommand_JumpToPassage) cmd) {
@@ -286,8 +298,11 @@ class TwineVirtualMachine {
                 curCommand++;
         }
 
-        if (vmState == TwineVMState.WaitingForSelection) {
-
+        if (curTextBuffer.length > 0) {
+            startShowText ();
+        } else if (selections.length > 0) {
+            vmState = TwineVMState.WaitingForSelection;
+            setSelectionsCallback (selections);
         } else
             vmState = TwineVMState.Stopped;
     }

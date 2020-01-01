@@ -36,9 +36,22 @@ class TwineSMSFont {
         int charsStart = 0x20;
         int charsEnd   = 0x7F;
         int charsCount = (charsEnd - charsStart) + 1;
+
+        ubyte[8] charsMissingChar = [
+            0b10000001,
+            0b01000010,
+            0b00100100,
+            0b00011000,
+            0b00011000,
+            0b00100100,
+            0b01000010,
+            0b10000001,
+        ];
     }
 
     protected Texture charGlyphs;
+
+    protected this () { }
 
     Texture getGlyphsTex () {
         return charGlyphs;
@@ -108,7 +121,7 @@ class TwineSMSFont {
             throw new TwineSMSFontException (format ("Invalid font. Not enough pixel rows. (got %d, expected %d)", dataIdx, charsCount * 8));
 
         auto font = new TwineSMSFont ();
-        uint[8][charData.length] pixels;
+        uint[8][charData.length + charsMissingChar.length] pixels;
 
         for (int j = 0; j < charData.length; j++) {
             ubyte row = charData [j];
@@ -123,9 +136,22 @@ class TwineSMSFont {
             }
         }
 
+        for (int j = 0; j < charsMissingChar.length; j++) {
+            ubyte row = charsMissingChar [j];
+
+            for (int i = 0; i < 8; i++) {
+                bool isSet = (row & ((1 << 7) >> i)) != 0;
+
+                if (isSet)
+                    pixels [charData.length + j] [i] = 0xFFFFFFFF;
+                else
+                    pixels [charData.length + j] [i] = 0x00000000;
+            }
+        }
+
         auto tex = new Texture ();
-        tex.create (8, charData.length);
-        tex.updateFromPixels (cast (const (ubyte)[]) pixels, 8, charData.length, 0, 0);
+        tex.create (8, charData.length + charsMissingChar.length);
+        tex.updateFromPixels (cast (const (ubyte)[]) pixels, 8, charData.length + charsMissingChar.length, 0, 0);
 
         font.charGlyphs = tex;
 

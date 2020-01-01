@@ -18,12 +18,125 @@
 
 module smstext;
 
+import std.typecons : Rebindable;
+
 import dsfml.graphics;
 
 import smsfont;
+import vertexarray;
 
-class TwineSMSText /*: Drawable, Transformable*/ {
-    private {
-        TwineSMSFont font;
+class TwineSMSText : Drawable, Transformable {
+    mixin NormalTransformable;
+
+    protected {
+        TwineSMSFont _font;
+        Color _color;
+        string _text;
+
+        bool isDirty;
+        TwineVertexArray vertArr;
+        Rebindable!Texture tex;
+    }
+
+    this () {
+        isDirty = true;
+        vertArr = new TwineVertexArray (PrimitiveType.Triangles);
+    }
+
+    @property {
+        TwineSMSFont font () { return _font; }
+        TwineSMSFont font (TwineSMSFont newFont) {
+            _font = newFont;
+            isDirty = true;
+
+            return newFont;
+        }
+
+        Color color () const { return _color; }
+        Color color (Color newColor) {
+            _color = newColor;
+            isDirty = true;
+
+            return newColor;
+        }
+
+        string text () const { return _text; }
+        string text (string newText) {
+            _text = newText;
+            isDirty = true;
+
+            return newText;
+        }
+    }
+
+    protected int[] getLineCharIndices (string line) {
+        int[] indices = new int[line.length];
+
+        int curIdx = 0;
+        foreach (c; line) {
+            if (c < _font.charsStart || c > _font.charsEnd) {
+                indices [curIdx++] = _font.charsCount + 1;
+                continue;
+            }
+
+            indices [curIdx++] = (c - _font.charsStart);
+        }
+
+        return indices;
+    }
+
+    protected void buildVertArray () {
+        import std.string : lineSplitter;
+
+        vertArr.clear ();
+
+        if (!_font || !_text)
+            return;
+
+        auto splitLines = lineSplitter (text);
+
+        int lineCount = 0;
+        foreach (line; splitLines) {
+            auto charIndices = getLineCharIndices (line);
+            auto verts = new Vertex[charIndices.length * 6];
+
+            for (int i = 0; i < charIndices.length; i++) {
+                auto charIdx = charIndices [i];
+                auto charOrigin = Vector2f (i * 8, lineCount * 8);
+                auto charVerts = [
+                    Vertex (charOrigin + Vector2f (0, 0), Vector2f (0, charIdx * 8    )),
+                    Vertex (charOrigin + Vector2f (0, 8), Vector2f (0, charIdx * 8 + 8)),
+                    Vertex (charOrigin + Vector2f (8, 8), Vector2f (8, charIdx * 8 + 8)),
+                    Vertex (charOrigin + Vector2f (8, 0), Vector2f (8, charIdx * 8    ))
+                ];
+
+                verts [i * 6    ] = charVerts [0];
+                verts [i * 6 + 1] = charVerts [1];
+                verts [i * 6 + 2] = charVerts [2];
+
+                verts [i * 6 + 3] = charVerts [0];
+                verts [i * 6 + 4] = charVerts [2];
+                verts [i * 6 + 5] = charVerts [3];
+            }
+
+            vertArr.append (verts);
+
+            lineCount++;
+        }
+
+        tex = _font.getGlyphsTex ();
+    }
+
+    override void draw (RenderTarget renderTarget, RenderStates renderStates) {
+        if (isDirty) {
+            buildVertArray ();
+            isDirty = false;
+        }
+
+        if (tex) {
+            renderStates.transform *= getTransform ();
+            renderStates.texture = tex;
+            vertArr.draw (renderTarget, renderStates);
+        }
     }
 }

@@ -19,6 +19,80 @@
 module utilities;
 
 import std.array : Appender, appender;
+import std.variant : Algebraic;
+
+static import dsfml.graphics;
+
+enum ParseColourError {
+    InvalidHexColour,
+    InvalidRGBTriplet,
+    RGBTripletOutOfRange
+}
+
+alias ParseColourReturn = Algebraic!(ParseColourError, uint);
+ParseColourReturn parseColourString (string colStr) {
+    import std.conv : to, ConvException;
+
+    int rInt, gInt, bInt;
+
+    if (colStr [0] == '#') {
+        if (colStr.length != 7)
+            return ParseColourReturn (ParseColourError.InvalidHexColour);
+
+        colStr = colStr [1 .. $];
+        auto rStr = colStr [0 .. 2];
+        auto gStr = colStr [2 .. 4];
+        auto bStr = colStr [4 .. 6];
+
+        try {
+            rInt = rStr.to!int (16);
+            gInt = gStr.to!int (16);
+            bInt = bStr.to!int (16);
+        } catch (ConvException e) {
+            return ParseColourReturn (ParseColourError.InvalidHexColour);
+        }
+    } else {
+        import std.array : split;
+        auto colStrSplit = colStr.split (':');
+
+        if (colStrSplit.length != 3)
+            return ParseColourReturn (ParseColourError.InvalidRGBTriplet);
+
+        try {
+            rInt = colStrSplit [0].to!int (10);
+            gInt = colStrSplit [1].to!int (10);
+            bInt = colStrSplit [2].to!int (10);
+        } catch (ConvException e) {
+            return ParseColourReturn (ParseColourError.InvalidRGBTriplet);
+        }
+
+        if (
+            rInt < 0 || rInt > 255 ||
+            gInt < 0 || gInt > 255 ||
+            bInt < 0 || bInt > 255
+        ) {
+            return ParseColourReturn (ParseColourError.RGBTripletOutOfRange);
+        }
+    }
+
+    return ParseColourReturn (
+        rInt << 16 |
+        gInt <<  8 |
+        bInt       |
+        0xFF000000
+    );
+}
+
+dsfml.graphics.Color dsfmlColorFromArgbInt (uint col) {
+    dsfml.graphics.Color ret;
+
+    ret.a = cast (ubyte) ((col & 0xFF000000) >> 24);
+    ret.r = cast (ubyte) ((col & 0x00FF0000) >> 16);
+    ret.g = cast (ubyte) ((col & 0x0000FF00) >>  8);
+    ret.b = cast (ubyte) ((col & 0x000000FF)      );
+
+    return ret;
+}
 
 private void wrapLine (Appender!string wrapped, in string text, in int lineWidth) {
     import std.algorithm : splitter;

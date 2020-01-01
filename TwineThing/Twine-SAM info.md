@@ -1,11 +1,21 @@
-# Text:
-* Text size is 30 characters per line, with 6 lines per screen.
-* Automatic line breaks/word-wraps.
+# Screen:
+* 256x192 resolution.
 
 # Images:
 * Always 256x144, on the top of the screen before the text.
+* Real (displayed) size is 256x136. Last lines end up hidden by the text.
+
+# Text:
+* Only displayed once a `<<pause>>` command or the end of the passage is reached.
+* Characters are always 8x8.
+* Text size is 30 characters per line, with 6 lines per screen.
+* Automatic line breaks/word-wraps.
+* Cuts off the last few lines of the image.
+* One 8x8 empty space on either side.
+* 8 empty pixels between the last line and the bottom of the screen.
 
 # Selections:
+* Only displayed when the interpreter/VM reaches the end of the passage.
 * Has an indicator, always on the left side of the screen.
 * Up and left move the selector up, down and right move the selector down.
 * Moving the selection makes a beep.

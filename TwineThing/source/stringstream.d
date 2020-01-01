@@ -28,7 +28,7 @@ public struct StringStream {
     }
 
     public string opSlice (int start, int end)
-        in { assert (start >= 0 && end < inputStr.length && start <= end); }
+        in { assert (start >= 0 && start <= end && end < inputStr.length); }
     body {
         return inputStr [start .. end];
     }

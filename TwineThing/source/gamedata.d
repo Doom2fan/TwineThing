@@ -18,10 +18,27 @@
 
 module gamedata;
 
+static const int CharBlockSize = 8;
+
 struct TwineGameInfo {
     string gameName = null;
-    string tweePath = null;
-    string fontPath = null;
+    string tweePath;
+    string fontPath;
+
+    string selectionBeepPath;
+
+    uint backgroundColour;
+    uint textColour;
+
+    int imageWidth;
+    int imageHeight;
+
+    int windowWidth;
+    int windowHeight;
+
+    int textStartHeight;
+
+    int lineMaxLen;
 }
 
 class TwinePassage {
