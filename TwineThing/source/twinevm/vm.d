@@ -47,34 +47,39 @@ alias TwinePassageStack = Stack!(TwineStoredPassage, true);
 alias TwineStoredPassage = Tuple!(TwinePassage, "passage", int, "command");
 
 class TwineVirtualMachine {
-    /* Game data */
-    protected TwineGameData gameData;
-    protected TwineValue[string] gameVariables;
-    protected TwineFunctions gameFunctions;
-    public int lineMaxLen;
+    protected {
+        /* Game data */
+        TwineGameInfo gameInfo;
+        TwineGameData gameData;
+        TwineValue[string] gameVariables;
+        TwineFunctions gameFunctions;
 
-    /* VM state */
-    protected TwineVMState vmState;
-    // Current passage
-    protected TwinePassage curPassage;
-    protected int curCommand;
-    // Current text
-    protected string curTextBuffer;
-    protected string[] curTextLines;
-    // Selections
-    protected TwineSelection[] selections;
-    // Passage call stack
-    protected TwinePassageStack passageCallStack;
+        /* VM state */
+        TwineVMState vmState;
+        // Current passage
+        TwinePassage curPassage;
+        int curCommand;
+        // Current text
+        string curTextBuffer;
+        string[] curTextLines;
+        // Selections
+        TwineSelection[] selections;
+        // Passage call stack
+        TwinePassageStack passageCallStack;
+    }
 
     /* Callbacks */
-    public void delegate (string) setTextCallback;
-    public void delegate (string) setImageCallback;
-    public void delegate (string) setMusicCallback;
-    public void delegate (TwineSelection[]) setSelectionsCallback;
-    public void delegate (string) showFatalErrorCallback;
+    public {
+        void delegate (string) setTextCallback;
+        void delegate (string) setImageCallback;
+        void delegate (string) setMusicCallback;
+        void delegate (TwineSelection[]) setSelectionsCallback;
+        void delegate (string) showFatalErrorCallback;
+    }
 
-    public this (TwineGameData data) {
+    this (TwineGameInfo info, TwineGameData data) {
         // Game data
+        gameInfo = info;
         gameData = data;
 
         // VM state
@@ -87,15 +92,15 @@ class TwineVirtualMachine {
         passageCallStack = new TwinePassageStack (10);
     }
 
-    public TwineVMState getVMState () {
+    TwineVMState getVMState () {
         return vmState;
     }
 
-    public const (TwineSelection[]) getSelections () {
+    const (TwineSelection[]) getSelections () {
         return cast (const (TwineSelection[])) (selections);
     }
 
-    public void playerInput (int selNum) {
+    void playerInput (int selNum) {
         if (vmState == TwineVMState.ScreenPause) {
             if (curTextLines.length < 1) {
                 vmState = TwineVMState.Running;
@@ -117,7 +122,7 @@ class TwineVirtualMachine {
     protected void startShowText () {
         vmState = TwineVMState.ScreenPause;
 
-        curTextLines = curTextBuffer.wrap (lineMaxLen).split ('\n');
+        curTextLines = curTextBuffer.wrap (gameInfo.lineMaxLen).split ('\n');
         curTextBuffer = null;
 
         showText ();
@@ -164,7 +169,7 @@ class TwineVirtualMachine {
                 return funcRet.get!TwineValue;
             }
         } else if (auto negExpr = cast (TwineExpr_Negate) expr) {
-            auto val = evaluateExpression (negExpr.expr);
+            auto val = evaluateExpression (negExpr.expression);
             return TwineValue (!(val.asBool ()));
         } else if (auto binExpr = cast (TwineBinaryExpression) expr) {
             auto lhs = evaluateExpression (binExpr.lhs);
@@ -198,7 +203,7 @@ class TwineVirtualMachine {
         assert (0);
     }
 
-    public void run () {
+    void run () {
         if (
             vmState == TwineVMState.ScreenPause ||
             vmState == TwineVMState.WaitingForSelection ||

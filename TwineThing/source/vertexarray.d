@@ -177,7 +177,7 @@ class TwineVertexArray : Drawable {
         renderTarget.draw (getArray (), primitiveType, renderStates);
     }
 
-    public Vertex[] opSlice (int start, int end)
+    Vertex[] opSlice (int start, int end)
         in { assert (start >= 0 && start <= end && end < vertCount); }
     body {
         return vertices [start .. end];

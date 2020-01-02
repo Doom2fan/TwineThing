@@ -49,9 +49,11 @@ class TwineFunctions {
     struct TwineFunctionDeclareArgs(DeclArg[] declArgs, string funcName = __FUNCTION__) {
         import std.array : split;
 
-        private const int _twineArgCount = declArgs.length;
-        private const string _twineFuncName = funcName.split ('.') [1];
-        public TwineVMException vmException;
+        private const {
+            int _twineArgCount = declArgs.length;
+            string _twineFuncName = funcName.split ('.') [1];
+        }
+        TwineVMException vmException;
 
         static foreach (arg; declArgs) {
             static if (arg.type == TwineValueType.Int)

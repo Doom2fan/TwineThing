@@ -34,7 +34,7 @@ class TomlConfigException : Exception {
 class TomlConfigException_TomlParsingError : TomlConfigException {
     Exception innerException;
 
-    public this (Exception inner, string file = __FILE__, int _line = __LINE__) {
+    this (Exception inner, string file = __FILE__, int _line = __LINE__) {
         super ("", file, _line);
 
         innerException = inner;
@@ -44,7 +44,7 @@ class TomlConfigException_TomlParsingError : TomlConfigException {
 class TomlConfigException_MissingRequiredKey : TomlConfigException {
     string tomlKeyName;
 
-    public this (string keyName, string file = __FILE__, int _line = __LINE__) {
+    this (string keyName, string file = __FILE__, int _line = __LINE__) {
         super ("Required key \"" ~ keyName ~ "\" not present", file, _line);
 
         tomlKeyName = keyName;
@@ -56,7 +56,7 @@ class TomlConfigException_KeyTypeMismatch : TomlConfigException {
     string receivedType;
     string expectedType;
 
-    public this (string keyName, string expected, string received, string file = __FILE__, int _line = __LINE__) {
+    this (string keyName, string expected, string received, string file = __FILE__, int _line = __LINE__) {
         auto msg = format ("Type mismatch for key \"%s\": Expected %s, got %s", keyName, expected, received);
         super (msg, file, _line);
 

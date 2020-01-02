@@ -108,7 +108,7 @@ class TwineGame {
                     return "";
 
                 if (fileContents.length >= 3 && fileContents [0 .. 3] == [ 0xEF, 0xBB, 0xBF ])
-                    fileContents = fileContents [2 .. $];
+                    fileContents = fileContents [3 .. $];
 
                 return fileContents;
             } catch (FileException e) {
@@ -263,6 +263,12 @@ class TwineGame {
                 return;
             }
 
+            if (!("Start" in gameData.passages)) {
+                displayFatalError ("The twee file has no \"Start\" passage.");
+                initFailed = true;
+                return;
+            }
+
             /* Load sounds */
             if (gameInfo.selectionBeepPath && gameInfo.selectionBeepPath.length > 0) {
                 selectionBeepSoundBuffer = new SoundBuffer ();
@@ -284,8 +290,7 @@ class TwineGame {
             gameInfo.lineMaxLen = gameInfo.windowWidth - 2;
 
             /* Create the virtual machine */
-            virtualMachine = new TwineVirtualMachine (gameData);
-            virtualMachine.lineMaxLen = gameInfo.lineMaxLen;
+            virtualMachine = new TwineVirtualMachine (gameInfo, gameData);
             virtualMachine.setTextCallback = &setText;
             virtualMachine.setImageCallback = &setImage;
             virtualMachine.setMusicCallback = null;

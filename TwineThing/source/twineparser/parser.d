@@ -18,19 +18,20 @@
 
 module twineparser.parser;
 
+import std.array : appender;
 import std.string : strip;
+
 import gamedata;
 import twineparser.tokenizer;
 
 class TweeParserException : Exception {
     import std.typecons : Tuple;
 
-    protected Tuple!(string, "file", int, "line", int, "column") _position;
+    protected Tuple!(int, "line", int, "column") _position;
 
-    public this (string message, string errFile, int errLine, int errColumn, string file = __FILE__, int _line = __LINE__) {
+    this (string message, int errLine, int errColumn, string file = __FILE__, int _line = __LINE__) {
         super (message, file, _line);
 
-        this._position.file = errFile;
         this._position.line = errLine;
         this._position.column = errColumn;
     }
@@ -39,18 +40,56 @@ class TweeParserException : Exception {
      ** Gets the position (line and column) where the parsing expection
      ** has occured.
     */
-    public pure nothrow @property @safe @nogc auto position () {
+    pure nothrow @property @safe @nogc auto position () {
         return this._position;
     }
 }
 
-public class TwineParser {
+class TweeParserException_UnexpectedToken : TweeParserException {
+    this (TwineTokenType[] expected, TwineToken received, string file = __FILE__, int _line = __LINE__)
+    in { assert (expected.length > 0); }
+    body {
+        auto app = appender!string;
+
+        app.put ("Unexpected \"");
+        app.put (received.value);
+        app.put ("\", expected ");
+
+        if (expected.length == 1)
+            app.put (TwineToken.typeToString (expected [0]));
+        else {
+            app.put ("one of [ ");
+            bool first = true;
+            foreach (type; expected) {
+                if (!first)
+                    app.put (", ");
+
+                app.put (TwineToken.typeToString (type));
+                first = false;
+            }
+            app.put (" ]");
+        }
+
+        super (app [], received.line, received.column, file, _line);
+    }
+}
+
+class TwineParser {
+    protected {
+        TwineTokenizer tokenizer;
+        string curTokenizerInput;
+    }
+
+    this () {
+        tokenizer = new TwineTokenizer ();
+        curTokenizerInput = null;
+    }
+
     protected struct ParserPassage {
         string passageName;
         string passageContents;
     }
 
-    protected TwineTokenizer tokenizer;
     protected ParserPassage[] preprocessTweeFile (string input) {
         import stringstream : StringStream;
 
@@ -132,46 +171,139 @@ public class TwineParser {
         return passages;
     }
 
-    public TwineGameData parseTweeFile (string input) {
+    protected void setTokenizerInput (string tkInput) {
+        tokenizer.setInput (tkInput);
+        curTokenizerInput = tkInput;
+    }
+
+    TwineGameData parseTweeFile (string input) {
         ParserPassage[] splitPassages = preprocessTweeFile (input); // @suppress(dscanner.suspicious.unmodified)
 
         auto gameData = new TwineGameData ();
 
-        auto pass = new TwinePassage ();
-        pass.passageName = "Start";
+        foreach (parserPassage; splitPassages) {
+            auto passage = new TwinePassage ();
+            passage.passageName = parserPassage.passageName;
 
-        auto imageCMD = new TwineCommand_SetImage ();
-        imageCMD.imageName = "TEST1.png";
-        pass.commands ~= imageCMD;
+            setTokenizerInput (parserPassage.passageContents);
+            tokenizer.commandMode = false;
 
-        auto textCMD = new TwineCommand_PrintText ();
-        textCMD.text ~= "test aaaa bbbb cccc dddd\neeee fffff gggg\nhhhh iii jjjjj\nkkkkkkkkkk llllllllllll\nmmmmmmmmmm\nnnnnnnnnnn\nooooooo\npppppp\nqqqqq\nrrrrrr\nsssss\nttttttttttt\nuuuuuuuuu\nmaxkek";
-        pass.commands ~= textCMD;
+            parsePassage (passage);
 
-        pass.commands ~= new TwineCommand_Pause ();
+            gameData.passages [parserPassage.passageName] = passage;
+        }
 
-        auto selCMD = new TwineCommand_AddSelection ();
-        selCMD.selectionText = "Fak";
-        selCMD.targetPassage = "Start";
-        pass.commands ~= selCMD;
-
-        selCMD = new TwineCommand_AddSelection ();
-        selCMD.selectionText = "Fug";
-        selCMD.targetPassage = "Start";
-        pass.commands ~= selCMD;
-
-        imageCMD = new TwineCommand_SetImage ();
-        imageCMD.imageName = "TEST2.png";
-        pass.commands ~= imageCMD;
-
-        textCMD = new TwineCommand_PrintText ();
-        textCMD.text ~= "aaaaaa\nbbbbbb\ncccccc";
-        pass.commands ~= textCMD;
-
-        pass.commands ~= new TwineCommand_Pause ();
-
-        gameData.passages ["Start"] = pass;
+        scope (exit)
+            setTokenizerInput (null);
 
         return gameData;
+    }
+
+    void parsePassage (TwinePassage passage) {
+        import std.array : appender;
+
+        auto commands = parseCommands!(false) ();
+        passage.commands = commands;
+    }
+
+    TwineToken readToken (TwineTokenType[] expected, bool peek = false, bool errorOut = true) () {
+        TwineToken tk;
+        static if (!peek)
+            tk = tokenizer.next ();
+        else
+            tk = tokenizer.peek ();
+
+        switch (tk.type) {
+            static foreach (tkType; expected)
+                case tkType:
+            return tk;
+
+            default:
+                static if (errorOut)
+                    throw new TweeParserException_UnexpectedToken (expected, tk);
+                else
+                    return TwineToken (); // Return an invalid token.
+        }
+
+        assert (0);
+    }
+
+    TwineCommand[] parseCommands(bool parsingIf) () {
+        auto commands = appender!(TwineCommand[]);
+
+        auto tk = tokenizer.next ();
+        parseLoop:
+        while (tk.type != TwineTokenType.EOF) {
+            switch (tk.type) {
+                case TwineTokenType.Text:
+                    commands.put (new TwineCommand_PrintText (tk.value));
+                    break;
+
+                case TwineTokenType.CommandStart:
+                    static if (parsingIf) {
+                        tokenizer.commandMode = true;
+
+                        auto tkPeek = readToken!([ TwineTokenType.Identifier ], true, false) ();
+                        if (tkPeek.value == "endif") {
+                            // Read the "endif" token.
+                            tokenizer.next ();
+
+                            // Read the ">>".
+                            readToken!([ TwineTokenType.CommandEnd ]) ();
+
+                            tokenizer.commandMode = false;
+                            break parseLoop;
+                        }
+
+                        tokenizer.commandMode = false;
+                    }
+
+                    commands.put (parseCommand (tokenizer));
+                    break;
+
+                case TwineTokenType.Asterisk:
+                    auto tkPeek = readToken!([ TwineTokenType.SpecialOpen ], true, false) ();
+                    if ((tkPeek.startPos - (tk.startPos + tk.value.length)) == 1 &&
+                        curTokenizerInput [tkPeek.startPos - 1] == ' '
+                      ) {
+                        // Read the "[" token.
+                        tokenizer.next ();
+
+                        // Read the other "[" token.
+                        readToken!([ TwineTokenType.SpecialOpen ]) ();
+                        // Read the selection text.
+                        auto tkText = readToken!([ TwineTokenType.Text ]) ();
+                        // Read the "|" token.
+                        readToken!([ TwineTokenType.SpecialSeparator ]) ();
+                        // Read the targetPassage.
+                        auto tkTarget = readToken!([ TwineTokenType.Text ]) ();
+                        // Read the two "]" tokens.
+                        readToken!([ TwineTokenType.SpecialClose ]) ();
+                        readToken!([ TwineTokenType.SpecialClose ]) ();
+
+                        // Emit the command.
+                        commands.put (new TwineCommand_AddSelection (tkText.value, tkTarget.value));
+                    }
+                    break;
+
+                default:
+                    throw new TweeParserException_UnexpectedToken (
+                        [
+                            TwineTokenType.Text,
+                            TwineTokenType.CommandStart,
+                            TwineTokenType.Asterisk,
+                        ],
+                        tk
+                    );
+            }
+
+            tk = tokenizer.next ();
+        }
+
+        return commands [];
+    }
+
+    TwineCommand parseCommand (TwineTokenizer tokenizer) {
+        return null;
     }
 }

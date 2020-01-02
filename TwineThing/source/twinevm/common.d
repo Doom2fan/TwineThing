@@ -19,7 +19,7 @@
 module twinevm.common;
 
 class TwineVMException : Exception {
-    public this (string message, string file = __FILE__, int _line = __LINE__) {
+    this (string message, string file = __FILE__, int _line = __LINE__) {
         super (message, file, _line);
     }
 }

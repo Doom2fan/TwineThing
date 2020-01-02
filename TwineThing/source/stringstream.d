@@ -18,47 +18,49 @@
 
 module stringstream;
 
-public struct StringStream {
-    protected int curPos;
-    protected string inputStr;
+struct StringStream {
+    protected {
+        int curPos;
+        string inputStr;
+    }
 
-    public this (in string input) {
+    this (in string input) {
         inputStr = input;
         curPos = 0;
     }
 
-    public string opSlice (int start, int end)
-        in { assert (start >= 0 && start <= end && end < inputStr.length); }
-    body {
+    string opSlice (int start, int end) {
         return inputStr [start .. end];
     }
 
-    public immutable (char) opIndex (int idx)
-        in { assert (idx >= 0 && idx < inputStr.length); }
-    body {
+    immutable (char) opIndex (int idx) {
         return inputStr [idx];
     }
 
-    public void seek (int newPos) {
+    int opDollar () {
+        return inputStr.length;
+    }
+
+    void seek (int newPos) {
         curPos = newPos;
     }
 
-    public int getPosition () {
+    int getPosition () {
         return curPos;
     }
 
-    public bool eof () {
+    bool eof () {
         return curPos >= inputStr.length;
     }
 
-    public char peek () {
+    char peek () {
         if (eof ())
             return '\0';
 
         return inputStr [curPos];
     }
 
-    public char read () {
+    char read () {
         if (eof ())
             return '\0';
 
