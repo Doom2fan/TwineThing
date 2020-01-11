@@ -57,3 +57,5 @@
     * `lhs * rhs`: Multiplies the left side by the right side.
     * `lhs / rhs`: Divides the left side by the right side.
     * `lhs % rhs`: Returns the remainder of the division of the left side by the right side.
+* Unary operations:
+    * `-expr`: Negates the value as an int.

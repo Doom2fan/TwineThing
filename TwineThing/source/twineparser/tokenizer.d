@@ -74,14 +74,21 @@ enum TwineTokenType {
     Invalid,
 }
 
+/// A Twine token.
 struct TwineToken {
+    /// The type of the token.
     TwineTokenType type = TwineTokenType.Invalid;
+    /// The value of the token.
     string value = null;
 
+    /// The starting position of the token.
     int startPos = -1;
+    /// The starting line of the token.
     int line = -1;
+    /// The starting column of the token.
     int column = -1;
 
+    /// Converts a TwineTokenType to a string representation of such a token.
     static string typeToString (TwineTokenType type) {
         switch (type) {
             /* Both modes */
@@ -137,42 +144,71 @@ struct TwineToken {
     }
 }
 
+/// The Twine tokenizer.
 class TwineTokenizer {
     protected {
         StringStream input;
         int lineCount;
         int curLineStart;
     }
-
+    
+    /// Whether the tokenizer is in command mode.
     bool commandMode;
+    /// Whether the tokenizer should ignore whitespace.
+    bool ignoreWhitespace;
 
+    /// Sets the current input.
     void setInput (string newInput) {
         input = StringStream (newInput);
         reset ();
     }
 
+    /// Sets the current line count.
+    void setLineCount (int count) {
+        lineCount = count;
+    }
+
+    /// Resets the tokenizer.
     void reset () {
         input.seek (0);
         commandMode = false;
+        ignoreWhitespace = false;
+
+        lineCount = 1;
+        curLineStart = 0;
+    }
+
+    /// Whether we've reached the end of the input.
+    bool eof () {
+        return input.eof ();
+    }
+
+    /// Reads a character from the input stream.
+    char readChar () {
+        const (char) c = input.read ();
+
+        if (c == '\n') {
+            curLineStart = input.getPosition ();
+            lineCount++;
+        }
+
+        return c;
     }
 
     protected void skipWhitespace () {
         auto c = input.peek ();
         while (isWhite (c)) {
-            if (c == '\n') {
-                curLineStart = input.getPosition ();
-                lineCount++;
-            }
+            readChar ();
 
-            input.read ();
             c = input.peek ();
         }
     }
 
     protected int getColumn (int curPos, int lineStart) const {
-        return curPos - lineStart;
+        return curPos - lineStart + 1;
     }
 
+    /// Gets a token without advancing the tokenizer.
     TwineToken peek () {
         const (int) origPos = input.getPosition ();
         const (int) origLineCount = lineCount;
@@ -187,12 +223,13 @@ class TwineTokenizer {
         return tok;
     }
 
-    TwineToken [] peek (int count) {
+    /// Gets the specified number of tokens without advancing the tokenizer.
+    TwineToken[] peek (int count) {
         const (int) origPos = input.getPosition ();
         const (int) origLineCount = lineCount;
         const (int) origLineStart = curLineStart;
 
-        TwineToken [] tokens = new TwineToken [count];
+        TwineToken[] tokens = new TwineToken[count];
 
         for (int i = 0; i < count; i++)
             tokens [count] = next ();
@@ -204,23 +241,30 @@ class TwineTokenizer {
         return tokens;
     }
 
+    /// Reads a token.
     TwineToken next () {
         import std.uni : icmp;
 
-        skipWhitespace ();
+        if (ignoreWhitespace || commandMode)
+            skipWhitespace ();
         auto tk = TwineToken ();
         tk.type = TwineTokenType.Unknown;
 
         // Are we at the end of the stream?
         if (input.eof ()) {
             tk.type = TwineTokenType.EOF;
+
+            tk.startPos = input.getPosition ();
+            tk.line = lineCount;
+            tk.column = getColumn (tk.startPos, curLineStart);
+
             return tk;
         }
 
         const (int) startPos = input.getPosition ();
-        int startLine = lineCount;
-        int startColumn = getColumn (startPos, curLineStart);
-        char c = input.read ();
+        const (int) startLine = lineCount;
+        const (int) startColumn = getColumn (startPos, curLineStart);
+        char c = readChar ();
         int curLen = 1;
 
         switch (c) {
@@ -232,12 +276,12 @@ class TwineTokenizer {
                 tk.type = TwineTokenType.String;
 
                 do {
-                    c = input.read ();
+                    c = readChar ();
                     curLen++;
 
                     // Handle escape sequences
                     if (c == '\\') {
-                        input.read ();
+                        readChar ();
                         curLen++;
                     }
                 } while (c != '"' && !input.eof ());
@@ -248,7 +292,7 @@ class TwineTokenizer {
                 auto peek = input.peek ();
                 if (peek == '<') {
                     tk.type = TwineTokenType.CommandStart;
-                    input.read ();
+                    readChar ();
                     curLen++;
                     break;
                 }
@@ -258,11 +302,11 @@ class TwineTokenizer {
 
                 if (peek == '>') {
                     tk.type = TwineTokenType.NotEqualWeird;
-                    input.read ();
+                    readChar ();
                     curLen++;
                 } else if (peek == '=') {
                     tk.type = TwineTokenType.LesserEqual;
-                    input.read ();
+                    readChar ();
                     curLen++;
                 } else
                     tk.type = TwineTokenType.LesserThan;
@@ -274,7 +318,7 @@ class TwineTokenizer {
                 auto peek = input.peek ();
                 if (peek == '>') {
                     tk.type = TwineTokenType.CommandEnd;
-                    input.read ();
+                    readChar ();
                     curLen++;
                     break;
                 }
@@ -284,7 +328,7 @@ class TwineTokenizer {
 
                 if (peek == '=') {
                     tk.type = TwineTokenType.GreaterEqual;
-                    input.read ();
+                    readChar ();
                     curLen++;
                 } else
                     tk.type = TwineTokenType.GreaterThan;
@@ -320,10 +364,37 @@ class TwineTokenizer {
                 auto peek = input.peek ();
                 if (peek == '=') {
                     tk.type = TwineTokenType.Equals;
-                    input.read ();
+                    readChar ();
                     curLen++;
                 } else
                     tk.type = TwineTokenType.Assign;
+
+                break;
+            }
+
+            case '(': {
+                if (!commandMode)
+                    goto default;
+
+                tk.type = TwineTokenType.ParenOpen;
+
+                break;
+            }
+
+            case ')': {
+                if (!commandMode)
+                    goto default;
+
+                tk.type = TwineTokenType.ParenClose;
+
+                break;
+            }
+
+            case ',': {
+                if (!commandMode)
+                    goto default;
+
+                tk.type = TwineTokenType.Comma;
 
                 break;
             }
@@ -335,7 +406,7 @@ class TwineTokenizer {
                 auto peek = input.peek ();
                 if (peek == '=') {
                     tk.type = TwineTokenType.NotEqual;
-                    input.read ();
+                    readChar ();
                     curLen++;
                 }
 
@@ -362,7 +433,7 @@ class TwineTokenizer {
 
             case '*': {
                 if (!commandMode) {
-                    if (startPos == curLineStart)
+                    if ((startPos - curLineStart) == 0)
                         tk.type = TwineTokenType.Asterisk;
                     else
                         goto default;
@@ -397,18 +468,27 @@ class TwineTokenizer {
                     tk.type = TwineTokenType.Text;
 
                     char peek = input.peek ();
+                    parseLoop:
                     while (!input.eof ()) {
                         if (peek == '<') {
                             auto peek2 = input [startPos + curLen + 1]; // @suppress(dscanner.suspicious.unmodified)
 
                             if (peek2 == '<')
-                                break;
+                                break parseLoop;
                         }
+                        if (peek == '>') {
+                            auto peek2 = input [startPos + curLen + 1]; // @suppress(dscanner.suspicious.unmodified)
+
+                            if (peek2 == '>')
+                                break parseLoop;
+                        }
+
                         if (peek == '[' || peek == ']' || peek == '|' || peek == '*')
-                            break;
+                            break parseLoop;
 
                         curLen++;
-                        input.read ();
+                        readChar ();
+
                         peek = input.peek ();
                     }
 
@@ -421,7 +501,7 @@ class TwineTokenizer {
                     char peek = input.peek ();
                     while (isAlphaNum (peek) || peek == '_') {
                         curLen++;
-                        input.read ();
+                        readChar ();
                         peek = input.peek ();
                     }
                 } else if (isDigit (c)) {
@@ -430,7 +510,7 @@ class TwineTokenizer {
                     char peek = input.peek ();
                     while (isDigit (peek)) {
                         curLen++;
-                        input.read ();
+                        readChar ();
                         peek = input.peek ();
                     }
                 } else
@@ -463,8 +543,9 @@ class TwineTokenizer {
         return tk;
     }
 
-    TwineToken [] next (int count) {
-        TwineToken [] tokens = new TwineToken [count];
+    /// Reads the specified number of tokens.
+    TwineToken[] next (int count) {
+        TwineToken[] tokens = new TwineToken[count];
 
         for (int i = 0; i < count; i++)
             tokens [count] = next ();

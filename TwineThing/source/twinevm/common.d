@@ -18,8 +18,9 @@
 
 module twinevm.common;
 
+/// An exception raised when the VM encounters an error.
 class TwineVMException : Exception {
-    this (string message, string file = __FILE__, int _line = __LINE__) {
+    this (string message, string file = __FILE__, int _line = __LINE__) { // @suppress(dscanner.style.undocumented_declaration)
         super (message, file, _line);
     }
 }

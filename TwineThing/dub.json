@@ -8,6 +8,7 @@
     "targetType": "executable",
     "targetPath": "bin",
     "workingDirectory": "bin",
+	"dflags-ldc": ["-Wl,--subsystem,windows"],
 
     "lflags": [
         "+lib\\",

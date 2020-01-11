@@ -23,6 +23,7 @@ import std.format : format;
 
 import toml : TOML_TYPE;
 
+/// An exception raised when there's an error while parsing a TOML config file.
 class TomlConfigException : Exception {
     @disable this ();
 
@@ -31,32 +32,40 @@ class TomlConfigException : Exception {
     }
 }
 
+/// An exception raised when there's an error pasing the TOML file.
 class TomlConfigException_TomlParsingError : TomlConfigException {
+    /// The exception thrown by the TOML parser.
     Exception innerException;
 
-    this (Exception inner, string file = __FILE__, int _line = __LINE__) {
+    this (Exception inner, string file = __FILE__, int _line = __LINE__) { // @suppress(dscanner.style.undocumented_declaration)
         super ("", file, _line);
 
         innerException = inner;
     }
 }
 
+/// An exception raised when a required key is missing.
 class TomlConfigException_MissingRequiredKey : TomlConfigException {
+    /// The name of the key.
     string tomlKeyName;
 
-    this (string keyName, string file = __FILE__, int _line = __LINE__) {
+    this (string keyName, string file = __FILE__, int _line = __LINE__) { // @suppress(dscanner.style.undocumented_declaration)
         super ("Required key \"" ~ keyName ~ "\" not present", file, _line);
 
         tomlKeyName = keyName;
     }
 }
 
+/// An exception raised when the type of the parsed key does not match with the defined type.
 class TomlConfigException_KeyTypeMismatch : TomlConfigException {
+    /// The name of the key.
     string tomlKeyName;
+    /// The type that was received.
     string receivedType;
+    /// The type that was expected.
     string expectedType;
 
-    this (string keyName, string expected, string received, string file = __FILE__, int _line = __LINE__) {
+    this (string keyName, string expected, string received, string file = __FILE__, int _line = __LINE__) { // @suppress(dscanner.style.undocumented_declaration)
         auto msg = format ("Type mismatch for key \"%s\": Expected %s, got %s", keyName, expected, received);
         super (msg, file, _line);
 
@@ -66,11 +75,14 @@ class TomlConfigException_KeyTypeMismatch : TomlConfigException {
     }
 }
 
+/// Flags for TOML config keys.
 enum TomlConfigFlag {
     Required = 1,
 }
 
+/// A TOML config key.
 struct TomlConfigMember {
+    /// The pointer to the key's backing variable.
     Algebraic!(int*, bool*, string*, float*) memberPtr;
     package string tomlKey;
     package int flags;
@@ -82,22 +94,23 @@ struct TomlConfigMember {
         this.flags = flags;
     }
 
-    this (int* member, string keyName, int flags = 0) {
+    this (int* member, string keyName, int flags = 0) { // @suppress(dscanner.style.undocumented_declaration)
         this (keyName, flags);
         memberPtr = member;
     }
 
-    this (bool* member, string keyName, int flags = 0) {
+    this (bool* member, string keyName, int flags = 0) { // @suppress(dscanner.style.undocumented_declaration)
         this (keyName, flags);
         memberPtr = member;
     }
 
-    this (string* member, string keyName, int flags = 0) {
+    this (string* member, string keyName, int flags = 0) { // @suppress(dscanner.style.undocumented_declaration)
         this (keyName, flags);
         memberPtr = member;
     }
 }
 
+/// Converts a TOML key type to a string.
 string tomlTypeToString (TOML_TYPE type) {
     switch (type) {
         case TOML_TYPE.STRING: return "string";
@@ -118,6 +131,7 @@ string tomlTypeToString (TOML_TYPE type) {
     }
 }
 
+/// Parses a TOML config file.
 void parseTomlConfig (string tomlText, TomlConfigMember[] members) {
     import toml : parseTOML, TOMLDocument, TOMLParserException;
 
@@ -140,23 +154,35 @@ void parseTomlConfig (string tomlText, TomlConfigMember[] members) {
         }
 
         if (auto intPtr = member.memberPtr.peek!(int*)) {
-            if (tomlData.type != TOML_TYPE.INTEGER)
-                throw new TomlConfigException_KeyTypeMismatch (member.tomlKey, "integer", tomlTypeToString (tomlData.type));
+            if (tomlData.type != TOML_TYPE.INTEGER) {
+                throw new TomlConfigException_KeyTypeMismatch (
+                    member.tomlKey, "integer", tomlTypeToString (tomlData.type)
+                );
+            }
 
             **intPtr = cast (int) tomlData.integer;
         } if (auto intPtr = member.memberPtr.peek!(float*)) {
-            if (tomlData.type != TOML_TYPE.FLOAT)
-                throw new TomlConfigException_KeyTypeMismatch (member.tomlKey, "float", tomlTypeToString (tomlData.type));
+            if (tomlData.type != TOML_TYPE.FLOAT) {
+                throw new TomlConfigException_KeyTypeMismatch (
+                    member.tomlKey, "float", tomlTypeToString (tomlData.type)
+                );
+            }
 
             **intPtr = tomlData.floating;
         } else if (auto boolPtr = member.memberPtr.peek!(bool*)) {
-            if (tomlData.type != TOML_TYPE.FALSE && tomlData.type != TOML_TYPE.TRUE)
-                throw new TomlConfigException_KeyTypeMismatch (member.tomlKey, "boolean", tomlTypeToString (tomlData.type));
+            if (tomlData.type != TOML_TYPE.FALSE && tomlData.type != TOML_TYPE.TRUE) {
+                throw new TomlConfigException_KeyTypeMismatch (
+                    member.tomlKey, "boolean", tomlTypeToString (tomlData.type)
+                );
+            }
 
             **boolPtr = (tomlData.type == TOML_TYPE.TRUE);
         } else if (auto strPtr = member.memberPtr.peek!(string*)) {
-            if (tomlData.type != TOML_TYPE.STRING)
-                throw new TomlConfigException_KeyTypeMismatch (member.tomlKey, "string", tomlTypeToString (tomlData.type));
+            if (tomlData.type != TOML_TYPE.STRING) {
+                throw new TomlConfigException_KeyTypeMismatch (
+                    member.tomlKey, "string", tomlTypeToString (tomlData.type)
+                );
+            }
 
             **strPtr = tomlData.str;
         }

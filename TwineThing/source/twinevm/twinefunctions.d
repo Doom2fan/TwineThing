@@ -28,25 +28,52 @@ import twinevm.twinevalue;
 
 
 alias TwineExprReturn = Algebraic!(TwineValue, TwineVMException);
-alias TwineFunction = TwineExprReturn delegate (TwineValue[]);
+alias TwineFunction = TwineExprReturn function (TwineValue[]);
 
+/// The Twine VM functions.
 class TwineFunctions {
     alias DeclArg = Tuple!(TwineValueType, "type", string, "name");
 
+    /// The list of Twine VM functions.
     TwineFunction[string] functionList;
 
+    protected this () { }
+
+    /// Adds a function to the list.
     final void addFunction (string name, TwineFunction func) {
         functionList [name] = func;
     }
 
-    final TwineFunctions create () {
+    /// Creates the function list.
+    static TwineFunctions create () {
         auto funcs = new TwineFunctions ();
         funcs.addFunction ("random", &random);
 
         return funcs;
     }
 
-    struct TwineFunctionDeclareArgs(DeclArg[] declArgs, string funcName = __FUNCTION__) {
+    static TwineExprReturn random (TwineValue[] passedArgs) {
+        import std.random : uniform;
+
+        auto args = new TwineFunctionDeclareArgs!([
+            DeclArg (TwineValueType.Int, "min"),
+            DeclArg (TwineValueType.Int, "max")
+        ]) (passedArgs);
+
+        if (args.vmException)
+            return TwineExprReturn (args.vmException);
+
+        int minNum = args.min; // @suppress(dscanner.suspicious.unmodified)
+        int maxNum = args.max; // @suppress(dscanner.suspicious.unmodified)
+
+        if (minNum > maxNum)
+            swap (minNum, maxNum);
+
+        TwineValue ret = uniform!("[]") (minNum, maxNum);
+        return TwineExprReturn (ret);
+    }
+
+    protected struct TwineFunctionDeclareArgs(DeclArg[] declArgs, string funcName = __FUNCTION__) {
         import std.array : split;
 
         private const {
@@ -97,26 +124,5 @@ class TwineFunctions {
                     mixin (arg.name ~ " = passedArgs [" ~ to!string (countUntil (declArgs, arg)) ~ "].asString ();");
             }
         }
-    }
-
-    TwineExprReturn random (TwineValue[] passedArgs) {
-        import std.random : uniform;
-
-        auto args = new TwineFunctionDeclareArgs!([
-            DeclArg (TwineValueType.Int, "min"),
-            DeclArg (TwineValueType.Int, "max")
-        ]) (passedArgs);
-
-        if (args.vmException)
-            return TwineExprReturn (args.vmException);
-
-        int minNum = args.min;
-        int maxNum = args.max;
-
-        if (minNum > maxNum)
-            swap (minNum, maxNum);
-
-        TwineValue ret = uniform!("[]") (minNum, maxNum);
-        return TwineExprReturn (ret);
     }
 }

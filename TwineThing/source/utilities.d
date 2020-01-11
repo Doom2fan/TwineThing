@@ -89,7 +89,7 @@ dsfml.graphics.Color dsfmlColorFromArgbInt (uint col) {
     ret.a = cast (ubyte) ((col & 0xFF000000) >> 24);
     ret.r = cast (ubyte) ((col & 0x00FF0000) >> 16);
     ret.g = cast (ubyte) ((col & 0x0000FF00) >>  8);
-    ret.b = cast (ubyte) ((col & 0x000000FF)      );
+    ret.b = cast (ubyte)  (col & 0x000000FF)       ;
 
     return ret;
 }
@@ -107,7 +107,7 @@ private void wrapLine (Appender!string wrapped, in string text, in int lineWidth
 
     bool firstWord = true;
     foreach (word; words) {
-        if ((word.length + 1) > spaceLeft) {
+        if ((word.length) > spaceLeft) {
             if (word.length <= lineWidth) {
                 wrapped.put ('\n');
                 wrapped.put (word);

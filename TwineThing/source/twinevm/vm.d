@@ -81,6 +81,7 @@ class TwineVirtualMachine {
         // Game data
         gameInfo = info;
         gameData = data;
+        gameFunctions = TwineFunctions.create ();
 
         // VM state
         vmState = TwineVMState.Running;
@@ -108,7 +109,7 @@ class TwineVirtualMachine {
             }
             showText ();
         } else if (vmState == TwineVMState.WaitingForSelection) {
-            auto selection = selections [selNum];
+            auto selection = selections [selNum]; // @suppress(dscanner.suspicious.unmodified)
 
             curPassage = selection.passage;
             curCommand = 0;
@@ -167,14 +168,31 @@ class TwineVirtualMachine {
                     throw *e;
 
                 return funcRet.get!TwineValue;
-            }
+            } else
+                throw new TwineVMException ("Unknown function \"" ~ funcCallExpr.functionName ~ "\".");
+        } else if (auto notExpr = cast (TwineExpr_LogicalNot) expr) {
+            auto val = evaluateExpression (notExpr.expression);
+            return TwineValue (!(val.asInt ()));
+        } else if (auto orExpr = cast (TwineExpr_Or) expr) {
+            auto lhs = evaluateExpression (orExpr.lhs);
+            TwineValue rhs;
+
+            if (!lhs.asBool ())
+                rhs = evaluateExpression (orExpr.rhs);
+
+            return TwineValue (lhs.asBool () || rhs.asBool ());
+        } else if (auto andExpr = cast (TwineExpr_And) expr) {
+            auto lhs = evaluateExpression (andExpr.lhs);
+            TwineValue rhs;
+
+            if (lhs.asBool ())
+                rhs = evaluateExpression (andExpr.rhs);
+
+            return TwineValue (lhs.asBool () && rhs.asBool ());
         } else if (auto negExpr = cast (TwineExpr_Negate) expr) {
             auto val = evaluateExpression (negExpr.expression);
-            return TwineValue (!(val.asBool ()));
+            return TwineValue (-(val.asInt ()));
         } else if (auto binExpr = cast (TwineBinaryExpression) expr) {
-            auto lhs = evaluateExpression (binExpr.lhs);
-            auto rhs = evaluateExpression (binExpr.lhs);
-
             alias TwineBinaryOp = Tuple!(string, "type", string, "op", string, "conv");
             static immutable (TwineBinaryOp[]) binaryOps = [
                 TwineBinaryOp ("TwineExpr_Or"         , "||", ".asBool ()"),
@@ -194,9 +212,14 @@ class TwineVirtualMachine {
                 TwineBinaryOp ("TwineExpr_Remainder"  , "%" , ""),
             ];
 
+            auto lhs = evaluateExpression (binExpr.lhs);
+            auto rhs = evaluateExpression (binExpr.rhs);
+
             static foreach (exprType; binaryOps) {
-                mixin ("if (auto isExpr = cast (" ~ exprType.type ~ ") binExpr)" ~
-                    "return TwineValue (lhs" ~ exprType.conv ~ " " ~ exprType.op ~ " rhs" ~ exprType.conv ~ ");");
+                mixin (
+                    "if (auto isExpr = cast (" ~ exprType.type ~ ") binExpr)
+                        return TwineValue (lhs" ~ exprType.conv ~ " " ~ exprType.op ~ " rhs" ~ exprType.conv ~ ");"
+                );
             }
         }
 
@@ -232,6 +255,7 @@ class TwineVirtualMachine {
 
                 curPassage = *jumpTarget;
                 curCommand = 0;
+                incrementCmdCounter = false;
             } else if (auto callCMD = cast (TwineCommand_CallPassage) cmd) {
                 auto jumpTarget = (callCMD.targetPassage in gameData.passages); // @suppress(dscanner.suspicious.unmodified)
 
@@ -239,11 +263,12 @@ class TwineVirtualMachine {
                     showFatalVMError (format ("Unknown jump target \"%s\".", callCMD.targetPassage));
                     return;
                 }
-
-                passageCallStack.push (TwineStoredPassage (curPassage, curCommand));
+    
+                passageCallStack.push (TwineStoredPassage (curPassage, ++curCommand));
 
                 curPassage = *jumpTarget;
                 curCommand = 0;
+                incrementCmdCounter = false;
             } else if (auto returnCMD = cast (TwineCommand_ReturnPassage) cmd) {
                 if (passageCallStack.isEmpty) {
                     showFatalVMError ("Tried to return on an empty call stack.");
@@ -254,6 +279,7 @@ class TwineVirtualMachine {
 
                 curPassage = storedPassage.passage;
                 curCommand = storedPassage.command;
+                incrementCmdCounter = false;
             } else if (auto setMusicCMD = cast (TwineCommand_SetMusic) cmd) {
                 setMusicCallback (setMusicCMD.musicName);
             } else if (auto setImageCMD = cast (TwineCommand_SetImage) cmd) {
@@ -273,11 +299,11 @@ class TwineVirtualMachine {
 
                 selections ~= [ selection ];
             } else if (auto ifCMD = cast (TwineCommand_If) cmd) {
-                incrementCmdCounter = false;
-
                 try {
-                    if ((evaluateExpression (ifCMD.condition).asBool) == false)
+                    if ((evaluateExpression (ifCMD.condition).asBool ()) == false) {
                         curCommand += ifCMD.jumpCount;
+                        incrementCmdCounter = false;
+                    }
                 } catch (TwineVMException e) {
                     showFatalVMError (cast (string) e.message);
                     return;

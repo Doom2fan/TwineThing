@@ -22,21 +22,29 @@ import std.format : format;
 
 import dsfml.graphics : Texture;
 
+/// An exception raised when errors are encountered while parsing a SMS font.
 class TwineSMSFontException : Exception {
-    this (string message, string file = __FILE__, int _line = __LINE__) {
+    this (string message, string file = __FILE__, int _line = __LINE__) { // @suppress(dscanner.style.undocumented_declaration)
         super (message, file, _line);
     }
 }
 
+/// A SMS font.
 class TwineSMSFont {
     static const {
+        /// The format of a font line.
         string lineFormat = ".DB %xxxxxxxx"; // For printing messages and checking length. Do not use for correctness checking.
+        /// The regex for matching a font line.
         string lineFormatRegex = r".DB %([01]{8})"; // For checking the input's correctness. Must contain a capture group that
                                                     // contains the bits.
+        /// The first character of the character set.
         int charsStart = 0x20;
+        /// The last character of the character set.
         int charsEnd   = 0x7F;
+        /// The amount of characters in the character set.
         int charsCount = (charsEnd - charsStart) + 1;
 
+        /// The glyph for a missing character.
         ubyte[8] charsMissingChar = [
             0b10000001,
             0b01000010,
@@ -57,6 +65,7 @@ class TwineSMSFont {
         return charGlyphs;
     }
 
+    /// Parses and creates an instance of a SMS font.
     static TwineSMSFont create (string text) {
         import std.string : lineSplitter, indexOf, strip;
 
@@ -86,8 +95,11 @@ class TwineSMSFont {
             }
 
             if (line.length == lineFormat.length) {
-                if (dataIdx >= (charsCount * 8))
-                    throw new TwineSMSFontException (format ("Invalid font. Too many pixel rows. (expected %d)", charsCount * 8));
+                if (dataIdx >= (charsCount * 8)) {
+                    throw new TwineSMSFontException (
+                        format ("Invalid font. Too many pixel rows. (expected %d)", charsCount * 8)
+                    );
+                }
 
                 ubyte row = 0;
 
@@ -102,8 +114,11 @@ class TwineSMSFont {
                     );
                 }
 
-                if (m.captures.length != 2)
-                    throw new TwineSMSFontException ("Internal error in font parsing code: Invalid regex for line format");
+                if (m.captures.length != 2) {
+                    throw new TwineSMSFontException (
+                        "Internal error in font parsing code: Invalid regex for line format"
+                    );
+                }
 
                 auto rowStr = m.captures [1];
                 for (int i = 0; i < 8; i++) {
@@ -117,17 +132,20 @@ class TwineSMSFont {
             }
         }
 
-        if (dataIdx < (charsCount * 8))
-            throw new TwineSMSFontException (format ("Invalid font. Not enough pixel rows. (got %d, expected %d)", dataIdx, charsCount * 8));
+        if (dataIdx < (charsCount * 8)) {
+            throw new TwineSMSFontException (
+                format ("Invalid font. Not enough pixel rows. (got %d, expected %d)", dataIdx, charsCount * 8)
+            );
+        }
 
         auto font = new TwineSMSFont ();
         uint[8][charData.length + charsMissingChar.length] pixels;
 
         for (int j = 0; j < charData.length; j++) {
-            ubyte row = charData [j];
+            const (ubyte) row = charData [j];
 
             for (int i = 0; i < 8; i++) {
-                bool isSet = (row & ((1 << 7) >> i)) != 0;
+                const (bool) isSet = (row & ((1 << 7) >> i)) != 0;
 
                 if (isSet)
                     pixels [j] [i] = 0xFFFFFFFF;
@@ -137,10 +155,10 @@ class TwineSMSFont {
         }
 
         for (int j = 0; j < charsMissingChar.length; j++) {
-            ubyte row = charsMissingChar [j];
+            const (ubyte) row = charsMissingChar [j];
 
             for (int i = 0; i < 8; i++) {
-                bool isSet = (row & ((1 << 7) >> i)) != 0;
+                const (bool) isSet = (row & ((1 << 7) >> i)) != 0;
 
                 if (isSet)
                     pixels [charData.length + j] [i] = 0xFFFFFFFF;

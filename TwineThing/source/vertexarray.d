@@ -50,7 +50,7 @@ class TwineVertexArray : Drawable {
         float bottom = vertices [0].position.y;
 
         for (size_t i = 1; i < vertices.length; i++) {
-            Vector2f position = vertices [i].position;
+            auto position = cast (const) vertices [i].position;
 
             // Update left and right
             if (position.x < left)

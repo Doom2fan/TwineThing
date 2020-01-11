@@ -29,6 +29,7 @@ enum TwineValueType {
     String,
 }
 
+/// A Twine value.
 struct TwineValue {
     Algebraic!(int, bool, string) value;
     TwineValueType type;
@@ -57,7 +58,7 @@ struct TwineValue {
     bool asBool () const {
         switch (type) {
             case TwineValueType.Int:
-                return cast (bool) value.get!(int);
+                return value.get!(int) != 0;
             case TwineValueType.Bool:
                 return value.get!(bool);
             case TwineValueType.String:
@@ -100,6 +101,11 @@ struct TwineValue {
         return value.opEquals (rhs.value);
     }
 
+    ulong toHash () const {
+        return value.toHash ();
+    }
+
+
     int opCmp (ref const TwineValue rhs) const {
         if (type != rhs.type)
             throw new TwineVMException ("Cannot compare values of different types.");
@@ -140,7 +146,7 @@ struct TwineValue {
         assert (0);
     }
 
-    void toString (scope void delegate (const(char)[]) sink) const {
+    void toString (scope void delegate (const (char)[]) sink) const {
         switch (type) {
             case TwineValueType.Int:
                 sink (value.get!(bool) ? "true" : "false");

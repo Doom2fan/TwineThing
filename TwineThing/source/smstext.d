@@ -25,6 +25,7 @@ import dsfml.graphics;
 import smsfont;
 import vertexarray;
 
+/// A DSFML text element that uses a SMS font.
 class TwineSMSText : Drawable, Transformable {
     mixin NormalTransformable;
 
@@ -38,13 +39,15 @@ class TwineSMSText : Drawable, Transformable {
         Rebindable!Texture tex;
     }
 
-    this () {
+    this () { // @suppress(dscanner.style.undocumented_declaration)
         isDirty = true;
         vertArr = new TwineVertexArray (PrimitiveType.Triangles);
     }
 
     @property {
+        /// Gets the current font.
         TwineSMSFont font () { return _font; }
+        /// Sets the current font.
         TwineSMSFont font (TwineSMSFont newFont) {
             _font = newFont;
             isDirty = true;
@@ -52,7 +55,9 @@ class TwineSMSText : Drawable, Transformable {
             return newFont;
         }
 
+        /// Gets the current text colour.
         Color color () const { return _color; }
+        /// Sets the current text colour.
         Color color (Color newColor) {
             _color = newColor;
             isDirty = true;
@@ -60,7 +65,9 @@ class TwineSMSText : Drawable, Transformable {
             return newColor;
         }
 
+        /// Gets the current text.
         string text () const { return _text; }
+        /// Sets the current text.
         string text (string newText) {
             _text = newText;
             isDirty = true;

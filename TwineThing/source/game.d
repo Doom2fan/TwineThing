@@ -36,6 +36,9 @@ import utilities : wrap, ParseColourError, parseColourString, dsfmlColorFromArgb
 import twineparser.parser;
 import twinevm.vm;
 
+/**
+ ** The main game class.
+*/
 class TwineGame {
     /* Protected members */
     protected {
@@ -77,8 +80,11 @@ class TwineGame {
 
     /* Public members */
     public {
+        /// The game info.
         TwineGameInfo gameInfo;
+        /// The game data.
         TwineGameData gameData;
+        /// The Twine VM.
         TwineVirtualMachine virtualMachine;
     }
 
@@ -123,7 +129,7 @@ class TwineGame {
         }
 
         final bool parseColourVar (in string colStr, out uint colVar) {
-            auto parsedCol = parseColourString (colStr);
+            auto parsedCol = cast (const) parseColourString (colStr);
 
             if (auto errCode = parsedCol.peek!ParseColourError) {
                 string errMsg = null;
@@ -211,7 +217,9 @@ class TwineGame {
                 initFailed = true;
                 return;
             } catch (TomlConfigException_KeyTypeMismatch e) {
-                displayFatalError (format ("Game info key \"%s\" type mismatch: Expected %s, got %s.", e.tomlKeyName, e.expectedType, e.receivedType));
+                displayFatalError (format ("Game info key \"%s\" type mismatch: Expected %s, got %s.", e.tomlKeyName,
+                    e.expectedType, e.receivedType
+                ));
                 initFailed = true;
                 return;
             }
@@ -221,7 +229,13 @@ class TwineGame {
             if (!parseColourVar (textColourString, gameInfo.textColour))
                 return;
 
-            static foreach (keyName; [ "gameInfo.imageWidth", "gameInfo.imageHeight", "gameInfo.windowWidth", "gameInfo.windowHeight"]) {
+            static const keysToValidate = [
+                "gameInfo.imageWidth",
+                "gameInfo.imageHeight",
+                "gameInfo.windowWidth",
+                "gameInfo.windowHeight"
+            ];
+            static foreach (keyName; keysToValidate) {
                 if (mixin (keyName) < 1) {
                     displayFatalError (format ("Game info key \"%s\" cannot be zero or negative", keyName));
                     initFailed = true;
@@ -258,7 +272,14 @@ class TwineGame {
                 TwineParser parser = new TwineParser ();
                 gameData = parser.parseTweeFile (tweeFileContents);
             } catch (TweeParserException e) {
-                displayFatalError (format ("Twee parsing error at line %d:%d:\n  %s", e.position.line, e.position.column, e.message));
+                displayFatalError (
+                    format (
+                        "Twee parsing error at line %d:%d:\n  %s",
+                        e.position.line,
+                        e.position.column,
+                        e.message
+                    )
+                );
                 initFailed = true;
                 return;
             }
@@ -304,10 +325,13 @@ class TwineGame {
             selectionMarker.font = textFont;
 
             mainWindow.setTitle (gameInfo.gameName);
-            mainWindow.size = Vector2u (gameInfo.windowWidth * CharBlockSize, gameInfo.windowHeight * CharBlockSize);
+            mainWindow.size = Vector2u (gameInfo.windowWidth * CHARBLOCKSIZE, gameInfo.windowHeight * CHARBLOCKSIZE);
 
-            textBackground.size = Vector2f (gameInfo.windowWidth * CharBlockSize, (gameInfo.windowHeight - gameInfo.textStartHeight) * CharBlockSize);
-            textBackground.position = Vector2f (0, gameInfo.textStartHeight * CharBlockSize);
+            textBackground.size = Vector2f (
+                gameInfo.windowWidth * CHARBLOCKSIZE,
+                (gameInfo.windowHeight - gameInfo.textStartHeight) * CHARBLOCKSIZE
+            );
+            textBackground.position = Vector2f (0, gameInfo.textStartHeight * CHARBLOCKSIZE);
             textBackground.fillColor = dsfmlColorFromArgbInt (gameInfo.backgroundColour);
 
             initFailed = false;
@@ -385,6 +409,9 @@ class TwineGame {
 
         void keyPressed_Confirm () {
             virtualMachine.playerInput (selectionIndex);
+            
+            if (selectionBeepSound)
+                selectionBeepSound.play ();
         }
 
         void keyPressed_SelUp () {
@@ -406,6 +433,7 @@ class TwineGame {
         }
     }
 
+    /// Initializes the game class.
     final void initialize () {
         // Create the window
         auto contextSet = cast (const (ContextSettings)) ContextSettings (24, 8, 0, 3, 0);
@@ -460,6 +488,7 @@ class TwineGame {
         mainWindow.display ();
     }
 
+    /// Runs the game loop.
     final void run () {
         mainWindow.setFramerateLimit (60);
 
