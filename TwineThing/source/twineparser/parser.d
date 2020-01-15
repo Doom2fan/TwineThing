@@ -18,6 +18,7 @@
 
 module twineparser.parser;
 
+import std.algorithm : min;
 import std.array : appender;
 import std.conv : to;
 import std.string : strip, stripRight;
@@ -228,11 +229,11 @@ class TwineParser {
                     lineCount++;
                 }
 
-                auto peek = stream [curPos .. curPos + 2];
+                auto peek = stream [curPos .. min (curPos + 2, $)];
                 if (peek == "::") {
                     // Finish the previous passage, if any.
                     if (curContentStart > -1) {
-                        curPassage.passageContents = stripRight (stream [curContentStart .. curPos], "\n");
+                        curPassage.passageContents = stripRight (stream [curContentStart .. curPos], " \r\n");
                         passages ~= curPassage;
                     }
 
@@ -248,9 +249,9 @@ class TwineParser {
                         curLabelLen++;
                     }
 
-                    curPassage.passageName = strip (stream [curPos .. curPos + curLabelLen]);
                     stream.read (); // Read the newline.
                     lineCount++;
+                    curPassage.passageName = strip (stream [curPos .. curPos + curLabelLen]);
                     curPassage.lineCountOffset = lineCount;
                     curContentStart = stream.getPosition ();
                 } else if (curPos == 0)
@@ -259,8 +260,10 @@ class TwineParser {
                 stream.read ();
         }
 
-        curPassage.passageContents = stripRight (stream [curContentStart .. stream.getPosition ()]);
-        passages ~= curPassage;
+        if (curContentStart > -1) {
+            curPassage.passageContents = stripRight (stream [curContentStart .. stream.getPosition ()], " \r\n");
+            passages ~= curPassage;
+        }
 
         return passages;
     }
@@ -608,7 +611,11 @@ class TwineParser {
         }
 
         // Read the closing "]" token.
-        readToken!([ TwineTokenType.SpecialClose ]) ();
+        auto tkClose = readToken!([ TwineTokenType.SpecialClose ]) ();
+        // Remove any newline right after the special.
+        int curPos = cast (const) (tkClose.startPos + tkClose.value.length);
+        if (!tokenizer.eof () && curParserPassage.passageContents [curPos] == '\n')
+            tokenizer.readChar ();
 
         return ret;
     }
