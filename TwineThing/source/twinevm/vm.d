@@ -263,7 +263,7 @@ class TwineVirtualMachine {
                     showFatalVMError (format ("Unknown jump target \"%s\".", callCMD.targetPassage));
                     return;
                 }
-    
+
                 passageCallStack.push (TwineStoredPassage (curPassage, ++curCommand));
 
                 curPassage = *jumpTarget;

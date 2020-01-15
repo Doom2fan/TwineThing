@@ -151,7 +151,7 @@ class TwineTokenizer {
         int lineCount;
         int curLineStart;
     }
-    
+
     /// Whether the tokenizer is in command mode.
     bool commandMode;
     /// Whether the tokenizer should ignore whitespace.

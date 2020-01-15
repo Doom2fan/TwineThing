@@ -533,7 +533,7 @@ class TwineParser {
 
                     // Read the "if" command's commands
                     auto ifCMDs = parseCommands!(true) ();
-                    
+
                     if (!ifCMDs)
                         throw new TweeParserException_UnclosedIf (tkCmdName, curParserPassage.passageName);
 

@@ -110,7 +110,7 @@ class GmeMusicEmu {
     @property int sampleRate () {
         if (!musicEmu)
             return 0;
-        
+
         return _sampleRate;
     }
 
@@ -143,7 +143,7 @@ class GmeMusicEmu {
 
         if (count > samples.length)
             return GmeError ("Count cannot be greater than the length of the samples array.");
-        
+
         auto errStr = gme_play (musicEmu, count, &(samples [0]));
         auto gmeErr = identifyError (errStr);
 
@@ -207,7 +207,7 @@ extern (C) {
     // Identifies the file type.
     private gme_cstr gme_identify_header (const void* header);
 
-    // Create emulator and load game music data into it. Sets *out to new emulator.    
+    // Create emulator and load game music data into it. Sets *out to new emulator.
     private gme_err_t gme_open_file (gme_cstr path, gme_MusicEmu* emu, int sample_rate);
 
     // Same as gme_open_file(), but uses file data already in memory. Makes copy of data.

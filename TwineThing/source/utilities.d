@@ -110,7 +110,7 @@ private void wrapLine (Appender!string wrapped, in string text, in int lineWidth
         if (cast (int) (word.length) >= spaceLeft) {
             if (word.length < lineWidth) {
                 wrapped.put ('\n');
-                
+
                 if (word.length > 0) {
                     wrapped.put (word);
                     spaceLeft = lineWidth - word.length;

@@ -24,7 +24,7 @@ struct StringStream {
         int curPos;
         string inputStr;
     }
-    
+
     /// Creates an instance of the stream class from the specified input.
     this (in string input) {
         inputStr = input;

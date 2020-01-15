@@ -392,7 +392,7 @@ class TwineGame {
                 displayFatalError (format ("Could not find music file \"%s\"", music));
                 return;
             }
-            
+
             gmeMusicPlayer.stop ();
             dsfmlMusicPlayer.stop ();
 
@@ -450,7 +450,7 @@ class TwineGame {
 
         void keyPressed_Confirm () {
             virtualMachine.playerInput (selectionIndex);
-            
+
             if (selectionBeepSound)
                 selectionBeepSound.play ();
         }
