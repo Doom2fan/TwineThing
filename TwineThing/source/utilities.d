@@ -107,11 +107,18 @@ private void wrapLine (Appender!string wrapped, in string text, in int lineWidth
 
     bool firstWord = true;
     foreach (word; words) {
-        if ((word.length) > spaceLeft) {
-            if (word.length <= lineWidth) {
+        if (cast (int) (word.length) >= spaceLeft) {
+            if (word.length < lineWidth) {
                 wrapped.put ('\n');
-                wrapped.put (word);
-                spaceLeft = lineWidth - word.length;
+                
+                if (word.length > 0) {
+                    wrapped.put (word);
+                    spaceLeft = lineWidth - word.length;
+                } else {
+                    firstWord = true;
+                    spaceLeft = lineWidth;
+                    continue;
+                }
             } else {
                 if (!firstWord) {
                     wrapped.put (' ');
