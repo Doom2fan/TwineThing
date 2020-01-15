@@ -120,9 +120,12 @@ class TwineCommand_ReturnPassage : TwineCommand {
 class TwineCommand_SetMusic : TwineCommand {
     /// The music to play.
     string musicName;
+    /// The track to play.
+    TwineExpression trackNum;
 
-    this (string name) { // @suppress(dscanner.style.undocumented_declaration)
+    this (string name, TwineExpression trackExpr) { // @suppress(dscanner.style.undocumented_declaration)
         musicName = name;
+        trackNum = trackExpr;
     }
 }
 

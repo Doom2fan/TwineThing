@@ -501,7 +501,18 @@ class TwineParser {
                     // Read the music's name.
                     auto tkMusicName = readToken!([ TwineTokenType.String ]) ();
 
-                    ret = [ new TwineCommand_SetMusic (tkMusicName.value [1 .. $-1]) ];
+                    TwineExpression trackNum = null;
+                    // Check if the next token is a comma, and if so, parse the track number.
+                    auto peek = readToken!([ TwineTokenType.Comma ], true, false) ();
+                    if (peek.type != TwineTokenType.Invalid) {
+                        // Read the comma.
+                        readToken!([ TwineTokenType.Comma ]) ();
+                        // Parse the track number expression.
+                        trackNum = parseExpression ();
+                    } else
+                        trackNum = new TwineExpr_Integer (0);
+
+                    ret = [ new TwineCommand_SetMusic (tkMusicName.value [1 .. $-1], trackNum) ];
                 }
                 break;
 

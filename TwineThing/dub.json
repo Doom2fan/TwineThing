@@ -9,14 +9,13 @@
     "targetPath": "bin",
     "workingDirectory": "bin",
 	"dflags-ldc": ["-Wl,--subsystem,windows"],
-
-    "lflags": [
-        "+lib\\",
-        "+dsfmlc-audio",
-        "+dsfmlc-graphics",
-        "+dsfmlc-network",
-        "+dsfmlc-system",
-        "+dsfmlc-window",
+    "libs": [
+        "gme",
+        "dsfmlc-audio",
+        "dsfmlc-graphics",
+        "dsfmlc-network",
+        "dsfmlc-system",
+        "dsfmlc-window"
     ],
 
     "dependencies": {

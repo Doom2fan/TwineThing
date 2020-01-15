@@ -31,6 +31,8 @@ import gamedata;
 import tomlconfig;
 import smsfont;
 import smstext;
+import gme : GmeMusicEmu, GmeType;
+import gmemusic : GmeMusic;
 import utilities : wrap, ParseColourError, parseColourString, dsfmlColorFromArgbInt;
 
 import twineparser.parser;
@@ -48,6 +50,7 @@ class TwineGame {
         RenderWindow mainWindow;
         bool windowFocused = false;
 
+        // Controls
         bool zPressed     = false;
         bool xPressed     = false;
         bool upPressed    = false;
@@ -55,18 +58,22 @@ class TwineGame {
         bool leftPressed  = false;
         bool rightPressed = false;
 
+        // System
         Font systemFont;
 
+        // Image
         Texture imageTex;
         Sprite imageSprite;
         bool imageHidden;
         string imageError;
         Text imageText;
 
+        // Text
         TwineSMSFont textFont;
         TwineSMSText textData;
         RectangleShape textBackground;
 
+        // Selection
         int selectionIndex = 0;
         int maxSelectionIndex = 0;
         TwineSelection[] curSelections;
@@ -74,6 +81,10 @@ class TwineGame {
         Sound selectionBeepSound;
 
         SoundBuffer selectionBeepSoundBuffer;
+
+        // Music
+        GmeMusic gmeMusicPlayer;
+        Music dsfmlMusicPlayer;
 
         TwineVMState prevVMState;
     }
@@ -314,7 +325,7 @@ class TwineGame {
             virtualMachine = new TwineVirtualMachine (gameInfo, gameData);
             virtualMachine.setTextCallback = &setText;
             virtualMachine.setImageCallback = &setImage;
-            virtualMachine.setMusicCallback = null;
+            virtualMachine.setMusicCallback = &setMusic;
             virtualMachine.setSelectionsCallback = &setSelections;
             virtualMachine.showFatalErrorCallback = &displayFatalError;
 
@@ -363,6 +374,36 @@ class TwineGame {
 
         void setText (string text) {
             textData.text = text;
+        }
+
+        void setMusic (string music, int trackNum) {
+            if (!music || music.length == 0) {
+                gmeMusicPlayer.stop ();
+                dsfmlMusicPlayer.stop ();
+
+                return;
+            }
+
+            auto filePath = buildPath (thisExeDir (), "music/", music);
+            if (!exists (filePath)) {
+                gmeMusicPlayer.stop ();
+                dsfmlMusicPlayer.stop ();
+
+                displayFatalError (format ("Could not find music file \"%s\"", music));
+                return;
+            }
+            
+            gmeMusicPlayer.stop ();
+            dsfmlMusicPlayer.stop ();
+
+            if (gmeMusicPlayer.openFromFile (filePath, trackNum)) {
+                gmeMusicPlayer.play ();
+            } else if (dsfmlMusicPlayer.openFromFile (music)) {
+                dsfmlMusicPlayer.play ();
+            } else {
+                displayFatalError (format ("Music file \"%s\" could not be read.", music));
+                return;
+            }
         }
 
         void setSelections (TwineSelection[] selections) {
@@ -458,6 +499,10 @@ class TwineGame {
 
         // Create the selection data and elements
         selectionMarker = new TwineSMSText ();
+
+        // Create the music data
+        gmeMusicPlayer = new GmeMusic ();
+        dsfmlMusicPlayer = new Music ();
 
         // Load the game data
         loadGameInfo ();

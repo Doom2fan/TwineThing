@@ -72,7 +72,7 @@ class TwineVirtualMachine {
     public {
         void delegate (string) setTextCallback;
         void delegate (string) setImageCallback;
-        void delegate (string) setMusicCallback;
+        void delegate (string, int) setMusicCallback;
         void delegate (TwineSelection[]) setSelectionsCallback;
         void delegate (string) showFatalErrorCallback;
     }
@@ -281,7 +281,7 @@ class TwineVirtualMachine {
                 curCommand = storedPassage.command;
                 incrementCmdCounter = false;
             } else if (auto setMusicCMD = cast (TwineCommand_SetMusic) cmd) {
-                setMusicCallback (setMusicCMD.musicName);
+                setMusicCallback (setMusicCMD.musicName, evaluateExpression (setMusicCMD.trackNum).asInt ());
             } else if (auto setImageCMD = cast (TwineCommand_SetImage) cmd) {
                 setImageCallback (setImageCMD.imageName);
             } else if (auto addSelectionCMD = cast (TwineCommand_AddSelection) cmd) {
