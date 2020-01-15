@@ -358,12 +358,12 @@ class TwineGame {
 
             auto filePath = buildPath (thisExeDir (), "images/", name);
             if (!exists (filePath)) {
-                imageError = format ("Could not find image file \"%s\"", name);
+                displayFatalError (format ("Could not find image file \"%s\"", name));
                 return;
             }
 
             if (!imageTex.loadFromFile (filePath)) {
-                imageError = format ("Image file \"%s\" could not be loaded.", name);
+                displayFatalError (format ("Image file \"%s\" could not be loaded.", name));
                 return;
             }
 
