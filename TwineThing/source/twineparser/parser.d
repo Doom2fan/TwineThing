@@ -160,7 +160,7 @@ class TwineParser {
         atomExpr = ParserExpr (ParserExprType.Atom, null, [
             createExprInput (TwineTokenType.Identifier, null, &parseAtomExpr_VariableOrCall),
             createExprInput (TwineTokenType.String, null,
-                (TwineParser p, TwineToken token) => new TwineExpr_String (token.value) // @suppress(dscanner.suspicious.unused_parameter)
+                (TwineParser p, TwineToken token) => new TwineExpr_String (token.value [1 .. $-1]) // @suppress(dscanner.suspicious.unused_parameter)
             ),
             createExprInput (TwineTokenType.Number, null,
                 (TwineParser p, TwineToken token) => new TwineExpr_Integer (to!int (token.value)) // @suppress(dscanner.suspicious.unused_parameter)
@@ -501,7 +501,7 @@ class TwineParser {
                     // Read the music's name.
                     auto tkMusicName = readToken!([ TwineTokenType.String ]) ();
 
-                    ret = [ new TwineCommand_SetMusic (tkMusicName.value) ];
+                    ret = [ new TwineCommand_SetMusic (tkMusicName.value [1 .. $-1]) ];
                 }
                 break;
 
