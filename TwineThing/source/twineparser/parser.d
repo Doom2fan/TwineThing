@@ -415,7 +415,9 @@ class TwineParser {
                         readToken!([ TwineTokenType.SpecialOpen ]) ();
 
                         // Read the selection text.
+                        tokenizer.ignoreWhitespace = false;
                         auto tkText = readToken!([ TwineTokenType.Text ]) ();
+                        tokenizer.ignoreWhitespace = true;
 
                         // Read the "|" token.
                         readToken!([ TwineTokenType.SpecialSeparator ]) ();
