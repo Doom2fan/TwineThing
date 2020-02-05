@@ -18,6 +18,7 @@
 
 module game;
 
+import std.algorithm : min, max;
 import std.file : exists, readText, thisExePath;
 import std.path : buildPath;
 import std.format : format;
@@ -48,6 +49,7 @@ class TwineGame {
 
         bool initFailed;
         RenderWindow mainWindow;
+        View curView;
         bool windowFocused = false;
 
         // Controls
@@ -337,6 +339,8 @@ class TwineGame {
 
             mainWindow.setTitle (gameInfo.gameName);
             mainWindow.size = Vector2u (gameInfo.windowWidth * CHARBLOCKSIZE, gameInfo.windowHeight * CHARBLOCKSIZE);
+            curView = mainWindow.view.dup;
+            resized (mainWindow.size.x, mainWindow.size.y);
 
             textBackground.size = Vector2f (
                 gameInfo.windowWidth * CHARBLOCKSIZE,
@@ -448,6 +452,25 @@ class TwineGame {
             windowFocused = true;
         }
 
+        void resized (uint width, uint height) {
+            double screenWidth = gameInfo.windowWidth * CHARBLOCKSIZE;
+            double screenHeight = gameInfo.windowHeight * CHARBLOCKSIZE;
+
+            curView.size = Vector2f (screenWidth, screenHeight);
+
+            double scale = min (width / screenWidth, height / screenHeight);
+
+            auto finalW = (screenWidth * scale) / width;
+            auto finalH = (screenHeight * scale) / height;
+
+            auto left = (1. - finalW) / 2.;
+            auto top = (1. - finalH) / 2.;
+
+            curView.viewport = FloatRect (left, top, finalW, finalH);
+
+            mainWindow.view = curView;
+        }
+
         void keyPressed_Confirm () {
             if (selectionBeepSound && maxSelectionIndex > 1)
                 selectionBeepSound.play ();
@@ -479,6 +502,7 @@ class TwineGame {
         // Create the window
         auto contextSet = cast (const (ContextSettings)) ContextSettings (24, 8, 0, 3, 0);
         mainWindow = new RenderWindow (VideoMode (256, 192), "TwineThing"d, Window.Style.DefaultStyle, contextSet);
+        curView = new View (FloatRect (0, 0, 256, 192));
 
         // Load the system font
         systemFont = new Font ();
@@ -553,6 +577,10 @@ class TwineGame {
 
                     case Event.EventType.GainedFocus:
                         focusGained ();
+                    break;
+
+                    case Event.EventType.Resized:
+                        resized (event.size.width, event.size.height);
                     break;
 
                     case Event.EventType.KeyPressed:
