@@ -207,7 +207,11 @@ class TwineParser {
     protected alias ParserPassage = Tuple!(string, "passageName", string, "passageContents", int, "lineCountOffset");
 
     protected ParserPassage[] preprocessTweeFile (string input) {
+        import std.array : replace;
         import stringstream : StringStream;
+
+        input = input.replace ("\r\n", "\n");
+        input = input.replace ("\r", "\n");
 
         StringStream stream = StringStream (input);
 
