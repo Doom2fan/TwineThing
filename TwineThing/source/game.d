@@ -449,10 +449,10 @@ class TwineGame {
         }
 
         void keyPressed_Confirm () {
-            virtualMachine.playerInput (selectionIndex);
-
-            if (selectionBeepSound)
+            if (selectionBeepSound && maxSelectionIndex > 1)
                 selectionBeepSound.play ();
+
+            virtualMachine.playerInput (selectionIndex);
         }
 
         void keyPressed_SelUp () {
